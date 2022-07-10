@@ -1,64 +1,69 @@
 package varint
 
 import (
-	"fmt"
 	"math/bits"
 )
 
 const wsize = 8
 
-type signed interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64
-}
-
 type VarInt []uint64
 
-func NewVarInt(bits, count int) *VarInt {
-	size := (bits*count+wsize-1)/wsize + 1
+func NewVarInt(bits, length int) (*VarInt, error) {
+	if bits <= 0 {
+		return nil, ErrorBitsIsNotPositive{Bits: bits}
+	}
+	if length <= 0 {
+		return nil, ErrorLengthIsNotPositive{Length: length}
+	}
+	size := (bits*length+wsize-1)/wsize + 1
 	vint := VarInt(make([]uint64, size))
 	vint[0] = uint64(bits)
-	return &vint
+	return &vint, nil
 }
 
-func atInt[T signed](vint VarInt, i int) (val T, bsize, low, hiw, shift int, err error) {
-	if l := len(vint); i >= l {
-		return 0, 0, 0, 0, 0, fmt.Errorf("index out of range [%d] with length %d", i, l)
-	}
-	bsize = int(vint[0])
-	bfrom, bto := bsize*i, bsize*(i+1)
-	low, hiw = bfrom/wsize, bto/wsize
-	bshift, normshift := (hiw+1)*wsize-bto, wsize-(bsize%wsize)
-	result := ((vint[low] << (bshift + normshift)) >> normshift) | vint[hiw]>>bshift
-	return T(result), bsize, low, hiw, shift, nil
+func (vint VarInt) AtInt(i int) (int64, error) {
+	result, _, _, _, _, err := vint.atInt(i)
+	return int64(result), err
 }
 
-func AtInt[T signed](vint VarInt, i int) (val T, err error) {
-	result, _, _, _, _, err := atInt[T](vint, i)
-	return result, err
-}
-
-func AddInt[T signed](vint *VarInt, i int, val T) (overflow bool, err error) {
-	v := *vint
-	left, bsize, low, hiw, bshift, err := atInt[T](v, i)
+func (pvint *VarInt) AddInt(i int, val int64) (bool, error) {
+	left, bsize, bshift, low, hiw, err := pvint.atInt(i)
 	if err != nil {
 		return false, err
 	}
-	right := uint64(val)
+	v := uint64(val)
 	if normshift := wsize - bsize; normshift > 0 {
-		right = (right << normshift) >> normshift
+		v = (v << normshift) >> normshift
 	}
-	var result, tip uint64
-	if (int64(left) < 0) == (val < 0) {
-		result, tip = bits.Add64(uint64(left), right, 0)
-	} else {
-		result, tip = bits.Sub64(uint64(left), right, 0)
-	}
-	v[low] |= result >> bshift
-	v[hiw] |= result << bshift
-	overflow = tip > 0
-	return
+	result, tip := bits.Add64(uint64(left), v, 0)
+	(*pvint)[low] |= result >> bshift
+	(*pvint)[hiw] |= result << bshift
+	return tip > 0, nil
 }
 
-func SubInt[T signed](vint *VarInt, i int, val T) (overflow bool, err error) {
-	return AddInt(vint, i, val*-1)
+func (pvint *VarInt) SubInt(i int, val int64) (underflow bool, err error) {
+	left, bsize, bshift, low, hiw, err := pvint.atInt(i)
+	if err != nil {
+		return false, err
+	}
+	v := uint64(val)
+	if normshift := wsize - bsize; normshift > 0 {
+		v = (v << normshift) >> normshift
+	}
+	result, tip := bits.Sub64(uint64(left), v, 0)
+	(*pvint)[low] |= result >> bshift
+	(*pvint)[hiw] |= result << bshift
+	return tip > 0, nil
+}
+
+func (vint VarInt) atInt(i int) (result uint64, bsize, bshift, low, hiw int, err error) {
+	if l := len(vint); i >= l {
+		return 0, 0, 0, 0, 0, ErrorIndexOutOfRange{Index: i, Length: l}
+	}
+	bsize = int(vint[0])
+	bfrom, bto := bsize*i+wsize, bsize*(i+1)+wsize
+	low, hiw = (bfrom-1)/wsize, (bto-1)/wsize
+	bshift, normshift := (hiw+1)*wsize-bto, wsize-(bsize%wsize)
+	result = ((vint[low] << (bshift + normshift)) >> normshift) | vint[hiw]>>bshift
+	return
 }
