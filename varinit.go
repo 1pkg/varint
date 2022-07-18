@@ -1,100 +1,96 @@
 package varint
 
-import "math/bits"
-
-const wsize = 8
+const wsize = 64
 
 type VarInt []uint64
 
-func NewVarInt(bits, length int) (*VarInt, error) {
+func NewVarInt(bits, length int) (VarInt, error) {
 	if bits <= 0 {
-		return nil, ErrorBitsIsNotPositive{Bits: bits}
+		return nil, ErrorBitsIsNegative{Bits: bits}
 	}
 	if length <= 0 {
-		return nil, ErrorLengthIsNotPositive{Length: length}
+		return nil, ErrorLengthIsNegative{Length: length}
 	}
 	size := (bits*length+wsize-1)/wsize + 1
 	vint := VarInt(make([]uint64, size))
-	vint[0] = uint64(bits)
-	return &vint, nil
+	vint[0] = uint64(bits<<32 | length)
+	return vint, nil
 }
 
 func (vint VarInt) AtBits(i int) ([]uint64, error) {
-	if l := len(vint) - 1; i >= l {
-		return nil, ErrorIndexOutOfRange{Index: i, Length: l}
+	// Check that non negative index was provided.
+	if i < 0 {
+		return nil, ErrorIndexIsNegative{Index: i}
 	}
-	bsize := int(vint[0])
+	// Check that requested index is inside varint range.
+	bsize := int(vint[0] >> 32)
+	if l := int(int32(vint[0])); i >= l {
+		return nil, ErrorIndexIsOutOfRange{Index: i, Length: l}
+	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize, bsize*(i+1)+wsize-1
-	low, hiw := (bfrom-1)/wsize, (bto-1)/wsize
-	// Calculate shifting to fix the result.
-	lbshift, hbshift := bfrom-(low)*wsize-1, (hiw+1)*wsize-bto
-	// Slice words betwen low and high index and fix last and first word.
-	result := vint[low : hiw+1]
-	result[len(result)-1] >>= hbshift
-	result[len(result)-1] <<= hbshift
-	result[0] <<= lbshift
-	// Iterate over all result parts and fix shifting accordingly.
-	for i := 1; i < len(result); i++ {
-		result[i-1] |= result[i] >> (wsize - lbshift)
-		result[i] <<= lbshift
+	low, hiw := (bfrom)/wsize, (bto)/wsize
+	// Calculate left and right shifting to fix the uint64 result.
+	lbshift, rbshift := bfrom-(low)*wsize, (hiw+1)*wsize-bto-1
+	if low == hiw {
+		// In case we operate in the same word
+		// just shift all excess bits on the left and ride sides.
+		return []uint64{vint[low] << lbshift >> (rbshift + lbshift)}, nil
+	}
+	// Preallocate a slice to fit all words and start traversal them in reverse order.
+	result := make([]uint64, 0, hiw-low+1)
+	// Iterate until we didn't reach low word
+	// accumulate the combined word by shifting all excess bits on the left and ride sides.
+	for k := hiw; k > low; k-- {
+		result = append(result, (vint[k-1]<<(wsize-rbshift))|(vint[k]>>rbshift))
+	}
+	if wsize <= lbshift+rbshift {
+		// In case leftover low + high bits fit in single uint64 word fix last word
+		// first shift all excess bits on the left side
+		// of the low word and then align it to the right side to fit the high word.
+		// Then shift all excess bits on the right side of the high word and merge the intermidiate results.
+		result[len(result)-1] = (vint[low] << lbshift >> (lbshift - (wsize - rbshift))) | (vint[low+1] >> rbshift)
+	} else {
+		// Otherwise we need to add a separate word for leftover low + high bits
+		// first accumulate the combined word by shifting all excess bits on the left and ride sides.
+		// Then for low word just shift all excess bits on the left side and ride side with delta.
+		result = append(result, (vint[low] << lbshift >> (lbshift + rbshift)))
 	}
 	return result, nil
 }
 
-func (vint VarInt) AtInt(i int) (int64, error) {
-	// Check that requested index is inside varint range.
-	if l := len(vint) - 1; i >= l {
-		return 0, ErrorIndexOutOfRange{Index: i, Length: l}
+func (vint VarInt) AtUint(i int) (uint64, error) {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return 0, ErrorIndexIsNegative{Index: i}
 	}
-	// Check that resulting int64 can hold full bits representation.
-	bsize := int(vint[0])
+	// Check that resulting uint64 can hold full bits representation.
+	bsize := int(vint[0] >> 32)
 	if bsize > wsize {
-		return 0, ErrorBitsInt64Oveflow{Bits: bsize}
+		return 0, ErrorBitsUint64Oveflow{Bits: bsize}
+	}
+	// Check that requested index is inside varint range.
+	if l := int(int32(vint[0])); i >= l {
+		return 0, ErrorIndexIsOutOfRange{Index: i, Length: l}
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize, bsize*(i+1)+wsize-1
-	low, hiw := (bfrom-1)/wsize, (bto-1)/wsize
-	// Calculate shifting to fix the int64 result.
-	lbshift, hbshift := bfrom-(low)*wsize-1, (hiw+1)*wsize-bto
-	result := ((vint[low] << lbshift) >> lbshift) | vint[hiw]>>hbshift
-	return int64(result), nil
-}
-
-func (pvint *VarInt) AddInt(i int, val int64) (bool, error) {
-	// TODO
-	left, bsize, bshift, low, hiw, err := pvint.atInt(i)
-	if err != nil {
-		return false, err
+	low, hiw := (bfrom)/wsize, (bto)/wsize
+	// Calculate left and right shifting to fix the uint64 result.
+	lbshift, rbshift := bfrom-(low)*wsize, (hiw+1)*wsize-bto-1
+	if low == hiw {
+		// In case we operate in the same word
+		// just shift all excess bits on the left and ride sides.
+		return vint[low] << lbshift >> (rbshift + lbshift), nil
+	} else {
+		// In case we operate in different words
+		// first shift all excess bits on the left side
+		// of the low word and then align it to the right side to fit the high word.
+		// Then shift all excess bits on the right side of the high word and merge the intermidiate results.
+		// As we operate on 64 bits maximum expression
+		// 'lbshift - (wsize - rbshift)' should always stay positive.
+		return (vint[low] << lbshift >> (lbshift - (wsize - rbshift))) | (vint[hiw] >> rbshift), nil
 	}
-	// This fixes overflow of original vint bits size for
-	// provided value. Consider return int value overflow error instead.
-	v := uint64(val)
-	if normshift := wsize - bsize; normshift > 0 {
-		v = (v << normshift) >> normshift
-	}
-	result, tip := bits.Add64(uint64(left), v, 0)
-	(*pvint)[low] |= result >> bshift
-	(*pvint)[hiw] |= result << bshift
-	return tip > 0, nil
-}
-
-func (pvint *VarInt) SubInt(i int, val int64) (underflow bool, err error) {
-	// TODO
-	left, bsize, bshift, low, hiw, err := pvint.atInt(i)
-	if err != nil {
-		return false, err
-	}
-	// This fixes overflow of original vint bits size for
-	// provided value. Consider return int value overflow error instead.
-	v := uint64(val)
-	if normshift := wsize - bsize; normshift > 0 {
-		v = (v << normshift) >> normshift
-	}
-	result, tip := bits.Sub64(uint64(left), v, 0)
-	(*pvint)[low] |= result >> bshift
-	(*pvint)[hiw] |= result << bshift
-	return tip > 0, nil
 }
