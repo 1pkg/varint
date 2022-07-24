@@ -17,7 +17,7 @@ func NewVarInt(bits, length int) (VarInt, error) {
 	return vint, nil
 }
 
-func (vint VarInt) AtBits(i int) ([]uint64, error) {
+func (vint VarInt) AtBits(i int) (Bits, error) {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return nil, ErrorIndexIsNegative{Index: i}
