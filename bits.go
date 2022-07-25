@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-const digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
 var bSpace = []byte(" ")
 var bZero = []byte("0")
 
@@ -23,18 +21,16 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 	}
 	// Closely follow https://pkg.go.dev/math/big#Int.Format.
 	// First convert the formatting verb into sub-format verb for bytes.
-	var subVerb string
+	var base int
 	switch verb {
 	case 'b':
-		subVerb = "%b"
+		base = 2
 	case 'o', 'O':
-		subVerb = "%o"
+		base = 8
 	case 'd', 's', 'v':
-		subVerb = "%d"
-	case 'x':
-		subVerb = "%x"
-	case 'X':
-		subVerb = "%X"
+		base = 10
+	case 'x', 'X':
+		base = 16
 	default:
 		fmt.Fprintf(f, "%%!%c(varint.Bits=%b)", verb, bits)
 		return
@@ -57,9 +53,9 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 		prefix = "0o"
 	}
 	// Third print all underlying bytes into temporary buffer with sub-verb format.
-	var buf bytes.Buffer
-	for i := len(bits) - 1; i >= 0; i-- {
-		fmt.Fprintf(&buf, subVerb, bits[i])
+	numBytes := bits.Base(base)
+	if verb == 'X' {
+		numBytes = bytes.ToUpper(numBytes)
 	}
 	// Number of characters for the three classes of number padding.
 	// Left space characters to left of digits for right justification ("%8d").
@@ -67,10 +63,10 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 	// Right space characters to right of digits for left justification ("%-8d").
 	var left, zero, right int
 	precision, pok := f.Precision()
-	if pok && buf.Len() < precision {
-		zero = precision - buf.Len()
+	if pok && len(numBytes) < precision {
+		zero = precision - len(numBytes)
 	}
-	length := len(prefix) + zero + buf.Len()
+	length := len(prefix) + zero + len(numBytes)
 	if width, wok := f.Width(); wok && length < width {
 		switch d := width - length; {
 		case f.Flag('-'):
@@ -86,15 +82,15 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 	}
 	// Print number as [left pad][prefix][zero pad][digits][right pad]
 	for ; left > 0; left-- {
-		f.Write(bSpace)
+		_, _ = f.Write(bSpace)
 	}
-	f.Write([]byte(prefix))
+	_, _ = f.Write([]byte(prefix))
 	for ; zero > 0; zero-- {
-		f.Write(bZero)
+		_, _ = f.Write(bZero)
 	}
-	f.Write(buf.Bytes())
+	_, _ = f.Write(numBytes)
 	for ; right > 0; right-- {
-		f.Write(bSpace)
+		_, _ = f.Write(bSpace)
 	}
 }
 
@@ -102,6 +98,6 @@ func (bits Bits) String() string {
 	return fmt.Sprintf("%s", bits)
 }
 
-func (bits Bits) ToBase(base int) []byte {
+func (bits Bits) Base(base int) []byte {
 	return nil
 }
