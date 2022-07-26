@@ -113,8 +113,8 @@ func TestVarIntAt(t *testing.T) {
 				t.Fatalf("expected AtUint error %v doesn't match actual error %d", tcase.erruint, erruint)
 			}
 			rbits, errbits := tcase.vint.AtBits(tcase.at)
-			if !reflect.DeepEqual(rbits.Value(), tcase.rbits) {
-				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits.Value())
+			if !reflect.DeepEqual(rbits.Bytes(), tcase.rbits) {
+				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits.Bytes())
 			}
 			if errbits != tcase.errbits {
 				t.Fatalf("expected AtBits error %v doesn't match actual error %d", tcase.errbits, errbits)

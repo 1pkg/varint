@@ -10,8 +10,18 @@ var bZero = []byte("0")
 
 type Bits []uint64
 
-func (bits Bits) Value() []uint64 {
-	return bits
+func (bits Bits) Bits() int {
+	if bits == nil {
+		return 0
+	}
+	return int(bits[0])
+}
+
+func (bits Bits) Bytes() []uint64 {
+	if bits == nil {
+		return nil
+	}
+	return bits[1:]
 }
 
 func (bits Bits) Format(f fmt.State, verb rune) {

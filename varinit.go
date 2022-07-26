@@ -17,15 +17,19 @@ func NewVarInt(bits, length int) (VarInt, error) {
 	return vint, nil
 }
 
+func (vint VarInt) Length() (bits, length int) {
+	return int(vint[0] >> 32), int(vint[0] << 32 >> 32)
+}
+
 func (vint VarInt) AtBits(i int) (Bits, error) {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return nil, ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	bsize := int(vint[0] >> 32)
-	if l := int(int32(vint[0])); i >= l {
-		return nil, ErrorIndexIsOutOfRange{Index: i, Length: l}
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return nil, ErrorIndexIsOutOfRange{Index: i, Length: lenght}
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
@@ -36,10 +40,11 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 	if low == hiw {
 		// In case we operate in the same word
 		// just shift all excess bits on the left and ride sides.
-		return []uint64{vint[low] << lbshift >> (rbshift + lbshift)}, nil
+		return []uint64{uint64(bsize), vint[low] << lbshift >> (rbshift + lbshift)}, nil
 	}
 	// Preallocate a slice to fit all words and start traversal them in reverse order.
-	result := make([]uint64, 0, hiw-low+1)
+	result := make([]uint64, 0, hiw-low+2)
+	result = append(result, uint64(bsize))
 	// Iterate until we didn't reach low word
 	// accumulate the combined word by shifting all excess bits on the left and ride sides.
 	for k := hiw; k > low; k-- {
@@ -66,13 +71,13 @@ func (vint VarInt) AtUint(i int) (uint64, error) {
 		return 0, ErrorIndexIsNegative{Index: i}
 	}
 	// Check that resulting uint64 can hold full bits representation.
-	bsize := int(vint[0] >> 32)
+	bsize, lenght := vint.Length()
 	if bsize > wsize {
 		return 0, ErrorBitsUint64Oveflow{Bits: bsize}
 	}
 	// Check that requested index is inside varint range.
-	if l := int(int32(vint[0])); i >= l {
-		return 0, ErrorIndexIsOutOfRange{Index: i, Length: l}
+	if i >= lenght {
+		return 0, ErrorIndexIsOutOfRange{Index: i, Length: lenght}
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
