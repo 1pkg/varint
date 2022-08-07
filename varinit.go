@@ -99,3 +99,51 @@ func (vint VarInt) AtUint(i int) (uint64, error) {
 		return (vint[low] << lbshift >> (lbshift - (wsize - rbshift))) | (vint[hiw] >> rbshift), nil
 	}
 }
+
+func (vint VarInt) SetBits(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bsize != bzisex {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize, bsize*(i+1)+wsize-1
+	low, hiw := (bfrom)/wsize, (bto)/wsize
+	// Calculate left and right shifting to fix the uint64 result.
+	lbshift, rbshift := bfrom-(low)*wsize, (hiw+1)*wsize-bto-1
+	if low == hiw {
+		// In case we operate in the same word
+		// just shift all excess bits on the left and ride sides.
+		vint[low] |= bitsb[1] << rbshift
+		return nil
+	}
+	// Iterate until we didn't reach low word
+	// update the combined word by shifting all excess bits on the left and ride sides.
+	for k, i := hiw, 1; k > low; k-- {
+		vint[k] |= bitsb[i] << rbshift
+		vint[k-1] |= bitsb[i] >> (wsize - rbshift)
+		i++
+	}
+	if wsize <= lbshift+rbshift {
+		// In case leftover low + high bits fit in single uint64 word fix last word
+		// first shift all excess bits on the left side
+		// of the low word and then align it to the right side to fit the high word.
+		// Then shift all excess bits on the right side of the high word and merge the intermidiate results.
+		vint[low] = (vint[low] << lbshift >> (lbshift - (wsize - rbshift))) | (vint[low+1] >> rbshift)
+	} else {
+		// Otherwise we need to update a separate word for leftover low + high bits
+		// first accumulate the combined word by shifting all excess bits on the left and ride sides.
+		// Then for low word just shift all excess bits on the left side and ride side with delta.
+		vint[low] |= bitsb[len(bitsb)-1] << rbshift
+	}
+	return nil
+}

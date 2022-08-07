@@ -42,3 +42,12 @@ type ErrorIndexIsOutOfRange struct {
 func (err ErrorIndexIsOutOfRange) Error() string {
 	return fmt.Sprintf("index is out of range [%d] with length %d", err.Index, err.Length)
 }
+
+type ErrorUnequalBitsCardinality struct {
+	Bits  int
+	BitsX int
+}
+
+func (err ErrorUnequalBitsCardinality) Error() string {
+	return fmt.Sprintf("bits %d do not have equal cardinality with %d", err.Bits, err.BitsX)
+}
