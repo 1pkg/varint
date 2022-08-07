@@ -18,14 +18,6 @@ func (err ErrorLengthIsNegative) Error() string {
 	return fmt.Sprintf("lenght should be strictly positive number, but got %d", err.Length)
 }
 
-type ErrorBitsUint64Oveflow struct {
-	Bits int
-}
-
-func (err ErrorBitsUint64Oveflow) Error() string {
-	return fmt.Sprintf("bits %d overflows max size of uint64 %d", err.Bits, wsize)
-}
-
 type ErrorIndexIsNegative struct {
 	Index int
 }

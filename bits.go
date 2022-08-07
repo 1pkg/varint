@@ -1,12 +1,11 @@
 package varint
 
 import (
-	"bytes"
 	"fmt"
+	"math/big"
 )
 
-var bSpace = []byte(" ")
-var bZero = []byte("0")
+const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 type Bits []uint64
 
@@ -24,84 +23,21 @@ func (bits Bits) Bytes() []uint64 {
 	return bits[1:]
 }
 
+func (bits Bits) Uint64() uint64 {
+	if b := bits.Bits(); b == 0 || b > 64 {
+		return 0
+	}
+	return bits[1]
+}
+
 func (bits Bits) Format(f fmt.State, verb rune) {
 	if bits == nil {
 		fmt.Fprintf(f, "")
 		return
 	}
-	// Closely follow https://pkg.go.dev/math/big#Int.Format.
-	// First convert the formatting verb into sub-format verb for bytes.
-	var base int
-	switch verb {
-	case 'b':
-		base = 2
-	case 'o', 'O':
-		base = 8
-	case 'd', 's', 'v':
-		base = 10
-	case 'x', 'X':
-		base = 16
-	default:
-		fmt.Fprintf(f, "%%!%c(varint.Bits=%b)", verb, bits)
-		return
-	}
-	// Second get format prefix from fmt flags.
-	var prefix string
-	if f.Flag('#') {
-		switch verb {
-		case 'b':
-			prefix = "0b"
-		case 'o':
-			prefix = "0"
-		case 'x':
-			prefix = "0x"
-		case 'X':
-			prefix = "0X"
-		}
-	}
-	if verb == 'O' {
-		prefix = "0o"
-	}
-	// Third print all underlying bytes into temporary buffer with sub-verb format.
-	numBytes := bits.Base(base)
-	if verb == 'X' {
-		numBytes = bytes.ToUpper(numBytes)
-	}
-	// Number of characters for the three classes of number padding.
-	// Left space characters to left of digits for right justification ("%8d").
-	// Zero characters (actually cs[0]) as left-most digits ("%.8d").
-	// Right space characters to right of digits for left justification ("%-8d").
-	var left, zero, right int
-	precision, pok := f.Precision()
-	if pok && len(numBytes) < precision {
-		zero = precision - len(numBytes)
-	}
-	length := len(prefix) + zero + len(numBytes)
-	if width, wok := f.Width(); wok && length < width {
-		switch d := width - length; {
-		case f.Flag('-'):
-			// Pad on the right with spaces; supersedes '0' when both specified.
-			right = d
-		case f.Flag('0') && !pok:
-			// Pad with zeros unless precision also specified.
-			zero = d
-		default:
-			// Pad on the left with spaces.
-			left = d
-		}
-	}
-	// Print number as [left pad][prefix][zero pad][digits][right pad]
-	for ; left > 0; left-- {
-		_, _ = f.Write(bSpace)
-	}
-	_, _ = f.Write([]byte(prefix))
-	for ; zero > 0; zero-- {
-		_, _ = f.Write(bZero)
-	}
-	_, _ = f.Write(numBytes)
-	for ; right > 0; right-- {
-		_, _ = f.Write(bSpace)
-	}
+	// TODO for now just reuse big.Int Format here for simplicitly
+	// but untimetely after native mod-div is implemented use that.
+	bits.BigInt().Format(f, verb)
 }
 
 func (bits Bits) String() string {
@@ -109,5 +45,35 @@ func (bits Bits) String() string {
 }
 
 func (bits Bits) Base(base int) []byte {
-	return nil
+	if bits == nil {
+		return nil
+	}
+	switch {
+	case base < 2:
+		base = 2
+	case base > 62:
+		base = 62
+	}
+	// TODO for now just reuse big.Int Format here for simplicitly
+	// but untimetely after native mod-div is implemented use that.
+	var r []byte
+	i, b, m := bits.BigInt(), big.NewInt(int64(base)), big.NewInt(0)
+	for i.Uint64() > 0 {
+		_, _ = i.DivMod(i, b, m)
+		r = append([]byte{digits[m.Uint64()]}, r...)
+	}
+	return r
+}
+
+func (bits Bits) BigInt() *big.Int {
+	if bits == nil {
+		return nil
+	}
+	i := big.NewInt(0)
+	words := make([]big.Word, 0, len(bits)-1)
+	for _, b := range bits[1:] {
+		words = append(words, big.Word(b))
+	}
+	i.SetBits(words)
+	return i
 }

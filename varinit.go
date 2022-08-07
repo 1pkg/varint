@@ -65,41 +65,6 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 	return result, nil
 }
 
-func (vint VarInt) AtUint(i int) (uint64, error) {
-	// Check that non negative index was provided.
-	if i < 0 {
-		return 0, ErrorIndexIsNegative{Index: i}
-	}
-	// Check that resulting uint64 can hold full bits representation.
-	bsize, lenght := vint.Length()
-	if bsize > wsize {
-		return 0, ErrorBitsUint64Oveflow{Bits: bsize}
-	}
-	// Check that requested index is inside varint range.
-	if i >= lenght {
-		return 0, ErrorIndexIsOutOfRange{Index: i, Length: lenght}
-	}
-	// Calculate starting and ending bit with
-	// starting and ending index inside vint respecitvely.
-	bfrom, bto := bsize*i+wsize, bsize*(i+1)+wsize-1
-	low, hiw := (bfrom)/wsize, (bto)/wsize
-	// Calculate left and right shifting to fix the uint64 result.
-	lbshift, rbshift := bfrom-(low)*wsize, (hiw+1)*wsize-bto-1
-	if low == hiw {
-		// In case we operate in the same word
-		// just shift all excess bits on the left and ride sides.
-		return vint[low] << lbshift >> (rbshift + lbshift), nil
-	} else {
-		// In case we operate in different words
-		// first shift all excess bits on the left side
-		// of the low word and then align it to the right side to fit the high word.
-		// Then shift all excess bits on the right side of the high word and merge the intermidiate results.
-		// As we operate on 64 bits maximum expression
-		// 'lbshift - (wsize - rbshift)' should always stay positive.
-		return (vint[low] << lbshift >> (lbshift - (wsize - rbshift))) | (vint[hiw] >> rbshift), nil
-	}
-}
-
 func (vint VarInt) SetBits(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
