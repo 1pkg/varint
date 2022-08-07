@@ -2,12 +2,31 @@ package varint
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 )
 
 const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 type Bits []uint64
+
+func NewBits(bits []uint64) Bits {
+	l := len(bits) - 1
+	if l < 0 {
+		return nil
+	}
+	b := make([]uint64, 0, l+2)
+	b[0] = uint64(wsize*l) + uint64(math.Ceil(math.Log2(float64(bits[l]))))
+	copy(b[1:], bits)
+	return b
+}
+
+func NeUintwBits(n uint64) Bits {
+	if n == 0 {
+		return nil
+	}
+	return []uint64{uint64(math.Ceil(math.Log2(float64(n)))), n}
+}
 
 func (bits Bits) Bits() int {
 	if bits == nil {
@@ -23,11 +42,28 @@ func (bits Bits) Bytes() []uint64 {
 	return bits[1:]
 }
 
-func (bits Bits) Uint64() uint64 {
-	if b := bits.Bits(); b == 0 || b > 64 {
-		return 0
+func (bits Bits) Uint64() (uint64, error) {
+	b := bits.Bits()
+	if b == 0 {
+		return 0, nil
 	}
-	return bits[1]
+	if b > 64 {
+		return 0, ErrorBitsUint64Oveflow{Bits: b}
+	}
+	return bits[1], nil
+}
+
+func (bits Bits) BigInt() *big.Int {
+	if bits == nil {
+		return nil
+	}
+	i := big.NewInt(0)
+	words := make([]big.Word, 0, len(bits)-1)
+	for _, b := range bits[1:] {
+		words = append(words, big.Word(b))
+	}
+	i.SetBits(words)
+	return i
 }
 
 func (bits Bits) Format(f fmt.State, verb rune) {
@@ -44,15 +80,12 @@ func (bits Bits) String() string {
 	return fmt.Sprintf("%s", bits)
 }
 
-func (bits Bits) Base(base int) []byte {
+func (bits Bits) Base(base int) ([]byte, error) {
 	if bits == nil {
-		return nil
+		return nil, nil
 	}
-	switch {
-	case base < 2:
-		base = 2
-	case base > 62:
-		base = 62
+	if base < 2 || base > 62 {
+		return nil, ErrorBitsBaseOveflow{Base: base}
 	}
 	// TODO for now just reuse big.Int Format here for simplicitly
 	// but untimetely after native mod-div is implemented use that.
@@ -62,18 +95,5 @@ func (bits Bits) Base(base int) []byte {
 		_, _ = i.DivMod(i, b, m)
 		r = append([]byte{digits[m.Uint64()]}, r...)
 	}
-	return r
-}
-
-func (bits Bits) BigInt() *big.Int {
-	if bits == nil {
-		return nil
-	}
-	i := big.NewInt(0)
-	words := make([]big.Word, 0, len(bits)-1)
-	for _, b := range bits[1:] {
-		words = append(words, big.Word(b))
-	}
-	i.SetBits(words)
-	return i
+	return r, nil
 }

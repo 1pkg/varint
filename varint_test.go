@@ -131,8 +131,8 @@ func TestVarIntAt(t *testing.T) {
 			if fmt.Sprintf("%#X", rbits) != tcase.rhex {
 				t.Fatalf("expected hexadecimal AtBits result %s doesn't match actual result %#X", tcase.rhex, rbits)
 			}
-			if b62 := string(rbits.Base(62)); b62 != tcase.rb62 {
-				t.Fatalf("expected base62 AtBits result %s doesn't match actual result %s", tcase.rb62, b62)
+			if b62, _ := rbits.Base(62); string(b62) != tcase.rb62 {
+				t.Fatalf("expected base62 AtBits result %s doesn't match actual result %s", tcase.rb62, string(b62))
 			}
 		})
 	}
