@@ -59,3 +59,12 @@ type ErrorUnequalBitsCardinality struct {
 func (err ErrorUnequalBitsCardinality) Error() string {
 	return fmt.Sprintf("bits %d do not have equal cardinality with %d", err.Bits, err.BitsX)
 }
+
+type ErrorStringIsNotValidBaseNumber struct {
+	String string
+	Base   int
+}
+
+func (err ErrorStringIsNotValidBaseNumber) Error() string {
+	return fmt.Sprintf("string %s is not valid base %d number", err.String, err.Base)
+}

@@ -21,11 +21,38 @@ func NewBits(bits []uint64) Bits {
 	return b
 }
 
-func NeUintwBits(n uint64) Bits {
+func NewBitsUint64(n uint64) Bits {
 	if n == 0 {
 		return nil
 	}
 	return []uint64{uint64(math.Ceil(math.Log2(float64(n)))), n}
+}
+
+func NewBitsBigInt(i *big.Int) Bits {
+	wbits := i.Bits()
+	lw := len(wbits)
+	bits := make([]uint64, 0, lw/2+1)
+	for j := 0; j < lw; j += 2 {
+		// Do the same big.Int multi words check here.
+		if j == lw-1 {
+			bits = append(bits, uint64(wbits[j]))
+			continue
+		}
+		bits = append(bits, uint64(wbits[j+1])<<32|uint64(wbits[j]))
+	}
+	return NewBits(bits)
+}
+
+func NewBitsString(s string, base int) (Bits, error) {
+	if base < 2 || base > 62 {
+		return nil, ErrorBitsBaseOveflow{Base: base}
+	}
+	i := new(big.Int)
+	_, ok := i.SetString(s, base)
+	if !ok {
+		return nil, ErrorStringIsNotValidBaseNumber{String: s, Base: base}
+	}
+	return NewBitsBigInt(i), nil
 }
 
 func (bits Bits) Bits() int {
@@ -57,10 +84,16 @@ func (bits Bits) BigInt() *big.Int {
 	if bits == nil {
 		return nil
 	}
-	i := big.NewInt(0)
-	words := make([]big.Word, 0, len(bits)-1)
+	i := new(big.Int)
+	words := make([]big.Word, 0, (len(bits)-1)*2)
 	for _, b := range bits[1:] {
+		// Do the same big.Int multi words check here.
+		if w := big.Word(b); uint64(w) == b {
+			words = append(words, w)
+			continue
+		}
 		words = append(words, big.Word(b))
+		words = append(words, big.Word(b>>32))
 	}
 	i.SetBits(words)
 	return i
@@ -90,7 +123,7 @@ func (bits Bits) Base(base int) ([]byte, error) {
 	// TODO for now just reuse big.Int Format here for simplicitly
 	// but untimetely after native mod-div is implemented use that.
 	var r []byte
-	i, b, m := bits.BigInt(), big.NewInt(int64(base)), big.NewInt(0)
+	i, b, m := bits.BigInt(), big.NewInt(int64(base)), new(big.Int)
 	for i.Uint64() > 0 {
 		_, _ = i.DivMod(i, b, m)
 		r = append([]byte{digits[m.Uint64()]}, r...)
