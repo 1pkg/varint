@@ -2,7 +2,6 @@ package varint
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 )
 
@@ -11,6 +10,19 @@ func mustNewVarInt(bits, length int) VarInt {
 	if err != nil {
 		panic(err)
 	}
+	// fixture
+	vint[1] = 0x1C0B204899DFE765  // 0001110000001011001000000100100010011001110111111110011101100101
+	vint[2] = 0xDE01245899CFE865  // 1101111000000001001001000101100010011001110011111110100001100101
+	vint[3] = 0xBB0A2E43094FE733  // 1011101100001010001011100100001100001001010011111110011100110011
+	vint[4] = 0x1C0B204899DFE765  // 0001110000001011001000000100100010011001110111111110011101100101
+	vint[5] = 0xDE01245899CFE865  // 1101111000000001001001000101100010011001110011111110100001100101
+	vint[6] = 0xBB0A2E43094FE733  // 1011101100001010001011100100001100001001010011111110011100110011
+	vint[7] = 0x1C0B204899DFE765  // 0001110000001011001000000100100010011001110111111110011101100101
+	vint[8] = 0xDE01245899CFE865  // 1101111000000001001001000101100010011001110011111110100001100101
+	vint[9] = 0xBB0A2E43094FE733  // 1011101100001010001011100100001100001001010011111110011100110011
+	vint[10] = 0x1C0B204899DFE765 // 0001110000001011001000000100100010011001110111111110011101100101
+	vint[11] = 0xDE01245899CFE865 // 1101111000000001001001000101100010011001110011111110100001100101
+	vint[12] = 0xBB0A2E43094FE733 // 1011101100001010001011100100001100001001010011111110011100110011
 	return vint
 }
 
@@ -18,7 +30,7 @@ func TestVarIntAt(t *testing.T) {
 	tcases := map[string]struct {
 		vint    VarInt
 		at      int
-		rbits   []uint64
+		rbits   Bits
 		errbits error
 		rbin    string
 		roct    string
@@ -39,7 +51,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for same small word varint": {
 			vint:  mustNewVarInt(8, 100),
 			at:    19,
-			rbits: []uint64{0x43},
+			rbits: NewBits([]uint64{0x43}),
 			rbin:  "0b1000011",
 			roct:  "0o103",
 			rdec:  "67",
@@ -49,7 +61,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for different odd small word varint": {
 			vint:  mustNewVarInt(11, 100),
 			at:    17,
-			rbits: []uint64{0x4C7},
+			rbits: NewBits([]uint64{0x4C7}),
 			rbin:  "0b10011000111",
 			roct:  "0o2307",
 			rdec:  "1223",
@@ -59,7 +71,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for close to cap word varint": {
 			vint:  mustNewVarInt(63, 100),
 			at:    2,
-			rbits: []uint64{0x376145C86129FCE6},
+			rbits: NewBits([]uint64{0x376145C86129FCE6}),
 			rbin:  "0b11011101100001010001011100100001100001001010011111110011100110",
 			roct:  "0o335412134414112376346",
 			rdec:  "3990547471752887526",
@@ -69,7 +81,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for more than 1 word odd varint": {
 			vint:  mustNewVarInt(67, 100),
 			at:    1,
-			rbits: []uint64{0x8049162673FA196E, 0x7},
+			rbits: NewBits([]uint64{0x8049162673FA196E, 0x7}),
 			rbin:  "0b1111000000001001001000101100010011001110011111110100001100101101110",
 			roct:  "0o17001110542316376414556",
 			rdec:  "138371152580531853678",
@@ -79,7 +91,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for more than 2 word even varint": {
 			vint:  mustNewVarInt(190, 100),
 			at:    1,
-			rbits: []uint64{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76},
+			rbits: NewBits([]uint64{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76}),
 			rbin:  "0b1100011100000010110010000001001000100110011101111111100111011001011101111000000001001001000101100010011001110011111110100001100101101110110000101000101110010000110000100101001111111001110011",
 			roct:  "0o1434026201104635774731357001110542316376414556605056206045177163",
 			rdec:  "1219933054867519094558795547060405704302187833031700840051",
@@ -89,7 +101,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for more than 3 word odd varint": {
 			vint:  mustNewVarInt(217, 100),
 			at:    2,
-			rbits: []uint64{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0},
+			rbits: NewBits([]uint64{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0}),
 			rbin:  "0b1001110110010111011110000000010010010001011000100110011100111111101000011001011011101100001010001011100100001100001001010011111110011100110011000111000000101100100000010010001001100111011111111001110110010111011110000",
 			roct:  "0o1166273600222130463477503133541213441411237634630700544022114737716627360",
 			rdec:  "129658909767506927186822060435586250621066445025784138118639333104",
@@ -98,23 +110,10 @@ func TestVarIntAt(t *testing.T) {
 		},
 	}
 	for tname, tcase := range tcases {
-		// fixture
-		tcase.vint[1] = 0x1C0B204899DFE765  // 0001110000001011001000000100100010011001110111111110011101100101
-		tcase.vint[2] = 0xDE01245899CFE865  // 1101111000000001001001000101100010011001110011111110100001100101
-		tcase.vint[3] = 0xBB0A2E43094FE733  // 1011101100001010001011100100001100001001010011111110011100110011
-		tcase.vint[4] = 0x1C0B204899DFE765  // 0001110000001011001000000100100010011001110111111110011101100101
-		tcase.vint[5] = 0xDE01245899CFE865  // 1101111000000001001001000101100010011001110011111110100001100101
-		tcase.vint[6] = 0xBB0A2E43094FE733  // 1011101100001010001011100100001100001001010011111110011100110011
-		tcase.vint[7] = 0x1C0B204899DFE765  // 0001110000001011001000000100100010011001110111111110011101100101
-		tcase.vint[8] = 0xDE01245899CFE865  // 1101111000000001001001000101100010011001110011111110100001100101
-		tcase.vint[9] = 0xBB0A2E43094FE733  // 1011101100001010001011100100001100001001010011111110011100110011
-		tcase.vint[10] = 0x1C0B204899DFE765 // 0001110000001011001000000100100010011001110111111110011101100101
-		tcase.vint[11] = 0xDE01245899CFE865 // 1101111000000001001001000101100010011001110011111110100001100101
-		tcase.vint[12] = 0xBB0A2E43094FE733 // 1011101100001010001011100100001100001001010011111110011100110011
 		t.Run(tname, func(t *testing.T) {
 			rbits, errbits := tcase.vint.AtBits(tcase.at)
-			if !reflect.DeepEqual(rbits.Bytes(), tcase.rbits) {
-				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits.Bytes())
+			if !rbits.EqualBytes(tcase.rbits) {
+				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits)
 			}
 			if errbits != tcase.errbits {
 				t.Fatalf("expected AtBits error %v doesn't match actual error %d", tcase.errbits, errbits)
@@ -135,5 +134,69 @@ func TestVarIntAt(t *testing.T) {
 				t.Fatalf("expected base62 AtBits result %s doesn't match actual result %s", tcase.rb62, string(b62))
 			}
 		})
+	}
+}
+
+func TestVarIntSet(t *testing.T) {
+	n := mustNewVarInt(217, 100)
+	b := NewBits([]uint64{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0})
+	if err := n.SetBits(2, b); err != nil {
+		t.Fatal(err)
+	}
+	nb, _ := n.AtBits(2)
+	if !b.Equal(nb) {
+		t.Fatalf("expected result %#v doesn't match actual result %#v", b, nb)
+	}
+
+	n = mustNewVarInt(190, 100)
+	b = NewBits([]uint64{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76})
+	if err := n.SetBits(1, b); err != nil {
+		t.Fatal(err)
+	}
+	nb, _ = n.AtBits(1)
+	if !b.Equal(nb) {
+		t.Fatalf("expected result %#v doesn't match actual result %#v", b, nb)
+	}
+
+	n = mustNewVarInt(67, 100)
+	b = NewBits([]uint64{0x8049162673FA196E, 0x7})
+	if err := n.SetBits(1, b); err != nil {
+		t.Fatal(err)
+	}
+	nb, _ = n.AtBits(1)
+	if !b.Equal(nb) {
+		t.Fatalf("expected result %#v doesn't match actual result %#v", b, nb)
+	}
+
+	n = mustNewVarInt(63, 100)
+	b = NewBits([]uint64{0x376145C86129FCE6})
+	if err := n.SetBits(2, b); err != nil {
+		t.Fatal(err)
+	}
+	nb, _ = n.AtBits(2)
+	// TODO Bit size is not equal here.
+	if !b.EqualBytes(nb) {
+		t.Fatalf("expected result %#v doesn't match actual result %#v", b.Bytes(), nb.Bytes())
+	}
+
+	n = mustNewVarInt(11, 100)
+	b = NewBits([]uint64{0x4C7})
+	if err := n.SetBits(17, b); err != nil {
+		t.Fatal(err)
+	}
+	nb, _ = n.AtBits(17)
+	if !b.Equal(nb) {
+		t.Fatalf("expected result %#v doesn't match actual result %#v", b, nb)
+	}
+
+	n = mustNewVarInt(8, 100)
+	b = NewBits([]uint64{0x43})
+	if err := n.SetBits(19, b); err != nil {
+		t.Fatal(err)
+	}
+	nb, _ = n.AtBits(19)
+	// TODO Bit size is not equal here.
+	if !b.EqualBytes(nb) {
+		t.Fatalf("expected result %#v doesn't match actual result %#v", b, nb)
 	}
 }
