@@ -2,8 +2,8 @@ package varint
 
 import (
 	"fmt"
-	"math"
 	"math/big"
+	math_bits "math/bits"
 )
 
 // TODO for format, parse and base operations for now just reuse big.Int for simplicitly
@@ -11,32 +11,37 @@ import (
 
 const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-func minbsize(i uint64) uint64 {
-	return uint64(math.Ceil(math.Log2(float64(i))))
-}
-
 type Bits []uint64
 
-func NewBits(bits []uint64) Bits {
-	l := len(bits) - 1
-	if l < 0 {
-		return nil
+func NewBits(bsize int, bits []uint64) (Bits, error) {
+	// Calculate min bits size to hold provided bits slice.
+	minbsize := wsize*len(bits) - 1 + math_bits.Len(uint(bits[len(bits)-1]))
+	// Calculate number of whole words plus
+	// one word if partial mod word is needed.
+	words, bsizemod := bsize/wsize, bsize%wsize
+	if bsizemod > 0 {
+		words++
 	}
-	bsize := uint64(wsize*l) + minbsize(bits[l])
-	if bsize == 0 {
-		return nil
+	switch {
+	case bsize == 0:
+		return nil, nil
+	// Special marker, use a guess min bits size.
+	case bsize < 0:
+		bsize = minbsize
+	// Truncate original bits to provided size.
+	case bsize < minbsize:
+		bits = bits[:words]
+		shift := wsize - bsizemod
+		bits[words-1] = bits[words-1] << shift >> shift
 	}
-	b := make([]uint64, l+2)
-	b[0] = bsize
+	b := make([]uint64, words+1)
+	b[0] = uint64(bsize)
 	copy(b[1:], bits)
-	return b
+	return b, nil
 }
 
-func NewBitsUint64(n uint64) Bits {
-	if n == 0 {
-		return nil
-	}
-	return []uint64{minbsize(n), n}
+func NewBitsUint64(bsize int, n uint64) (Bits, error) {
+	return NewBits(bsize, []uint64{n})
 }
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
@@ -51,7 +56,7 @@ func NewBitsBigInt(i *big.Int) (Bits, error) {
 		}
 		bits = append(bits, uint64(wbits[j+1])<<32|uint64(wbits[j]))
 	}
-	return NewBits(bits), nil
+	return NewBits(i.BitLen(), bits)
 }
 
 func NewBitsString(s string, base int) (Bits, error) {
@@ -67,10 +72,9 @@ func NewBitsString(s string, base int) (Bits, error) {
 }
 
 func (bits Bits) Equal(b Bits) bool {
-	return bits.Bits() == b.Bits() && bits.EqualBytes(b)
-}
-
-func (bits Bits) EqualBytes(b Bits) bool {
+	if bits.Bits() != b.Bits() {
+		return false
+	}
 	bitsb, bb := bits.Bytes(), b.Bytes()
 	if len(bitsb) != len(bb) {
 		return false
@@ -102,7 +106,7 @@ func (bits Bits) Uint64() (uint64, error) {
 	if b == 0 {
 		return 0, nil
 	}
-	if b > 64 {
+	if b > wsize {
 		return 0, ErrorBitsUint64Oveflow{Bits: b}
 	}
 	return bits[1], nil
