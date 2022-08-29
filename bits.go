@@ -3,6 +3,7 @@ package varint
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
 	math_bits "math/bits"
 )
 
@@ -14,8 +15,12 @@ const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 type Bits []uint64
 
 func NewBits(bsize int, bits []uint64) (Bits, error) {
+	lb := len(bits) - 1
+	if lb < 0 {
+		return nil, nil
+	}
 	// Calculate min bits size to hold provided bits slice.
-	minbsize := wsize*len(bits) - 1 + math_bits.Len(uint(bits[len(bits)-1]))
+	minbsize := wsize*(lb) + math_bits.Len(uint(bits[lb]))
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
 	words, bsizemod := bsize/wsize, bsize%wsize
@@ -47,16 +52,28 @@ func NewBitsUint64(bsize int, n uint64) (Bits, error) {
 func NewBitsBigInt(i *big.Int) (Bits, error) {
 	wbits := i.Bits()
 	lw := len(wbits)
-	bits := make([]uint64, 0, lw/2+1)
+	var rbits []uint64
+	if bits.UintSize == wsize {
+		rbits = make([]uint64, 0, lw)
+	} else {
+		rbits = make([]uint64, 0, lw/2+1)
+	}
 	for j := 0; j < lw; j += 2 {
 		// Do the same big.Int multi words check here.
-		if j == lw-1 {
-			bits = append(bits, uint64(wbits[j]))
+		if bits.UintSize == wsize {
+			rbits = append(rbits, uint64(wbits[j]))
+			if j+1 < lw {
+				rbits = append(rbits, uint64(wbits[j+1]))
+			}
 			continue
 		}
-		bits = append(bits, uint64(wbits[j+1])<<32|uint64(wbits[j]))
+		w := uint64(wbits[j])
+		if j+1 < lw {
+			w |= uint64(wbits[j+1]) << 32
+		}
+		rbits = append(rbits, w)
 	}
-	return NewBits(i.BitLen(), bits)
+	return NewBits(i.BitLen(), rbits)
 }
 
 func NewBitsString(s string, base int) (Bits, error) {

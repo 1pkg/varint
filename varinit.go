@@ -51,7 +51,7 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 		// left side and ride side of low word.
 		case k == low:
 			result = append(result, (vint[k] << lbshift >> fullshift))
-		// Specia case, the point where low+1 == hight word is reached
+		// Special case, the point where low+1 == hight word is reached
 		// and leftover low word bits will fit into last result word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
 		// In case the sum is greater than word size, this means no extra result word is needed.
@@ -89,7 +89,8 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 	low, hiw := (bfrom)/wsize, (bto)/wsize
 	// Calculate left and right shifts to fix the uint64 result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
-	adjlbshift, adjrbshift := wsize-lbshift, wsize-rbshift
+	// Calculate word size adjunctive left and right shifts.
+	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
 	// Iterate over bits + from high to low word and
 	// override the combined word in vint.
 	for k, i := hiw, 0; i < len(bitsb); i++ {
@@ -102,6 +103,16 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 				vint[k]<<adjrbshift>>adjrbshift,
 				vint[k]>>adjlbshift<<adjlbshift
 			vint[k] = vbl | b | vbr
+		// Special case, the point where low+1 == hight word is reached
+		// and leftover low word bits is enough to fit last bits provided word size.
+		// This can be deduced from sum of left bit shift plus right bit shift.
+		// In case the sum is greater than word size, this means leftshifting is needed to be used.
+		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
+		case k-1 == low && wsize <= fullshift:
+			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
+			vint[k-1] = vint[k-1]>>adjlbshift<<adjlbshift | bitsb[i]>>adjrbshift
+			// Advance to mark low word as consumed, result is completed at this point.
+			k--
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of current and next word and combining them
 		// with right shifted parts of word from bits.
