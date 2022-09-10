@@ -3,7 +3,6 @@ package varint
 import (
 	"fmt"
 	"math/big"
-	"math/bits"
 	math_bits "math/bits"
 )
 
@@ -12,9 +11,9 @@ import (
 
 const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-type Bits []uint64
+type Bits []uint
 
-func NewBits(bsize int, bits []uint64) (Bits, error) {
+func NewBits(bsize int, bits []uint) (Bits, error) {
 	lb := len(bits) - 1
 	if lb < 0 {
 		return nil, nil
@@ -39,41 +38,23 @@ func NewBits(bsize int, bits []uint64) (Bits, error) {
 		shift := wsize - bsizemod
 		bits[words-1] = bits[words-1] << shift >> shift
 	}
-	b := make([]uint64, words+1)
-	b[0] = uint64(bsize)
+	b := make([]uint, words+1)
+	b[0] = uint(bsize)
 	copy(b[1:], bits)
 	return b, nil
 }
 
-func NewBitsUint64(bsize int, n uint64) (Bits, error) {
-	return NewBits(bsize, []uint64{n})
+func NewBitsUint(bsize int, n uint) (Bits, error) {
+	return NewBits(bsize, []uint{n})
 }
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
-	wbits := i.Bits()
-	lw := len(wbits)
-	var rbits []uint64
-	if bits.UintSize == wsize {
-		rbits = make([]uint64, 0, lw)
-	} else {
-		rbits = make([]uint64, 0, lw/2+1)
+	words := i.Bits()
+	bits := make([]uint, 0, len(words))
+	for _, w := range words {
+		bits = append(bits, uint(w))
 	}
-	for j := 0; j < lw; j += 2 {
-		// Do the same big.Int multi words check here.
-		if bits.UintSize == wsize {
-			rbits = append(rbits, uint64(wbits[j]))
-			if j+1 < lw {
-				rbits = append(rbits, uint64(wbits[j+1]))
-			}
-			continue
-		}
-		w := uint64(wbits[j])
-		if j+1 < lw {
-			w |= uint64(wbits[j+1]) << 32
-		}
-		rbits = append(rbits, w)
-	}
-	return NewBits(i.BitLen(), rbits)
+	return NewBits(i.BitLen(), bits)
 }
 
 func NewBitsString(s string, base int) (Bits, error) {
@@ -111,14 +92,14 @@ func (bits Bits) Bits() int {
 	return int(bits[0])
 }
 
-func (bits Bits) Bytes() []uint64 {
+func (bits Bits) Bytes() []uint {
 	if bits == nil {
 		return nil
 	}
 	return bits[1:]
 }
 
-func (bits Bits) Uint64() (uint64, error) {
+func (bits Bits) Uint() (uint, error) {
 	b := bits.Bits()
 	if b == 0 {
 		return 0, nil
@@ -134,15 +115,10 @@ func (bits Bits) BigInt() *big.Int {
 		return nil
 	}
 	i := new(big.Int)
-	words := make([]big.Word, 0, (len(bits)-1)*2)
-	for _, b := range bits[1:] {
-		// Do the same big.Int multi words check here.
-		if w := big.Word(b); uint64(w) == b {
-			words = append(words, w)
-			continue
-		}
+	bytes := bits.Bytes()
+	words := make([]big.Word, 0, len(bytes))
+	for _, b := range bytes {
 		words = append(words, big.Word(b))
-		words = append(words, big.Word(b>>32))
 	}
 	i.SetBits(words)
 	return i

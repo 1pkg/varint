@@ -6,23 +6,23 @@ import (
 )
 
 var (
-	fixture0  = []uint64{0x0}
-	fixtureFF = []uint64{0xFFFFFFFFFFFFFFFF}
-	fixtureAt = []uint64{0x1C0B204899DFE765, 0xDE01245899CFE865, 0xBB0A2E43094FE733}
+	fixture0  = []uint{0x0}
+	fixtureFF = []uint{0xFFFFFFFFFFFFFFFF}
+	fixtureAt = []uint{0x1C0B204899DFE765, 0xDE01245899CFE865, 0xBB0A2E43094FE733}
 )
 
-func mustNewVarInt(bits, length int, fixture []uint64) VarInt {
+func mustNewVarInt(bits, length int, fixture []uint) VarInt {
 	vint, err := NewVarInt(bits, length)
 	if err != nil {
 		panic(err)
 	}
-	for i := 1; i < len(vint)-1; i++ {
-		vint[i] = fixture[(i-1)%len(fixture)]
+	for i := rcap; i < len(vint)-1; i++ {
+		vint[i] = fixture[(i-rcap)%len(fixture)]
 	}
 	return vint
 }
 
-func mustNewBits(bsize int, bits []uint64) Bits {
+func mustNewBits(bsize int, bits []uint) Bits {
 	b, err := NewBits(bsize, bits)
 	if err != nil {
 		panic(err)
@@ -55,7 +55,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for same small word varint": {
 			vint:  mustNewVarInt(8, 100, fixtureAt),
 			at:    19,
-			rbits: mustNewBits(8, []uint64{0x43}),
+			rbits: mustNewBits(8, []uint{0x43}),
 			rbin:  "0b1000011",
 			roct:  "0o103",
 			rdec:  "67",
@@ -65,7 +65,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for different odd small word varint": {
 			vint:  mustNewVarInt(11, 100, fixtureAt),
 			at:    17,
-			rbits: mustNewBits(11, []uint64{0x4C7}),
+			rbits: mustNewBits(11, []uint{0x4C7}),
 			rbin:  "0b10011000111",
 			roct:  "0o2307",
 			rdec:  "1223",
@@ -75,7 +75,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for close to cap word varint": {
 			vint:  mustNewVarInt(63, 100, fixtureAt),
 			at:    2,
-			rbits: mustNewBits(63, []uint64{0x376145C86129FCE6}),
+			rbits: mustNewBits(63, []uint{0x376145C86129FCE6}),
 			rbin:  "0b11011101100001010001011100100001100001001010011111110011100110",
 			roct:  "0o335412134414112376346",
 			rdec:  "3990547471752887526",
@@ -85,7 +85,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for more than 1 word odd varint": {
 			vint:  mustNewVarInt(67, 100, fixtureAt),
 			at:    1,
-			rbits: mustNewBits(67, []uint64{0x8049162673FA196E, 0x7}),
+			rbits: mustNewBits(67, []uint{0x8049162673FA196E, 0x7}),
 			rbin:  "0b1111000000001001001000101100010011001110011111110100001100101101110",
 			roct:  "0o17001110542316376414556",
 			rdec:  "138371152580531853678",
@@ -95,7 +95,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for more than 2 word even varint": {
 			vint:  mustNewVarInt(190, 100, fixtureAt),
 			at:    1,
-			rbits: mustNewBits(190, []uint64{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76}),
+			rbits: mustNewBits(190, []uint{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76}),
 			rbin:  "0b1100011100000010110010000001001000100110011101111111100111011001011101111000000001001001000101100010011001110011111110100001100101101110110000101000101110010000110000100101001111111001110011",
 			roct:  "0o1434026201104635774731357001110542316376414556605056206045177163",
 			rdec:  "1219933054867519094558795547060405704302187833031700840051",
@@ -105,7 +105,7 @@ func TestVarIntAt(t *testing.T) {
 		"should return expected correct results for more than 3 word odd varint": {
 			vint:  mustNewVarInt(217, 100, fixtureAt),
 			at:    2,
-			rbits: mustNewBits(217, []uint64{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0}),
+			rbits: mustNewBits(217, []uint{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0}),
 			rbin:  "0b1001110110010111011110000000010010010001011000100110011100111111101000011001011011101100001010001011100100001100001001010011111110011100110011000111000000101100100000010010001001100111011111111001110110010111011110000",
 			roct:  "0o1166273600222130463477503133541213441411237634630700544022114737716627360",
 			rdec:  "129658909767506927186822060435586250621066445025784138118639333104",
@@ -161,38 +161,38 @@ func TestVarIntSet(t *testing.T) {
 		"should return unequal cardinality for not equal bits sizes": {
 			vint: mustNewVarInt(8, 100, fixtureFF),
 			at:   19,
-			bits: mustNewBits(24, []uint64{0x43}),
+			bits: mustNewBits(24, []uint{0x43}),
 			err:  ErrorUnequalBitsCardinality{Bits: 8, BitsX: 24},
 		},
 		"should return expected correct results for same small word varint": {
 			vint: mustNewVarInt(8, 100, fixtureFF),
 			at:   19,
-			bits: mustNewBits(8, []uint64{0x43}),
+			bits: mustNewBits(8, []uint{0x43}),
 		},
 		"should return expected correct results for different odd small word varint": {
 			vint: mustNewVarInt(11, 100, fixtureFF),
 			at:   17,
-			bits: mustNewBits(11, []uint64{0x4C7}),
+			bits: mustNewBits(11, []uint{0x4C7}),
 		},
 		"should return expected correct results for close to cap word varint": {
 			vint: mustNewVarInt(63, 100, fixtureFF),
 			at:   2,
-			bits: mustNewBits(63, []uint64{0x376145C86129FCE6}),
+			bits: mustNewBits(63, []uint{0x376145C86129FCE6}),
 		},
 		"should return expected correct results for more than 1 word odd varint": {
 			vint: mustNewVarInt(67, 100, fixtureFF),
 			at:   1,
-			bits: mustNewBits(67, []uint64{0x8049162673FA196E, 0x7}),
+			bits: mustNewBits(67, []uint{0x8049162673FA196E, 0x7}),
 		},
 		"should return expected correct results for more than 2 word even varint": {
 			vint: mustNewVarInt(190, 100, fixtureFF),
 			at:   1,
-			bits: mustNewBits(190, []uint64{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76}),
+			bits: mustNewBits(190, []uint{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76}),
 		},
 		"should return expected correct results for more than 3 word odd varint": {
 			vint: mustNewVarInt(217, 100, fixtureFF),
 			at:   2,
-			bits: mustNewBits(217, []uint64{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0}),
+			bits: mustNewBits(217, []uint{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0}),
 		},
 	}
 	for tname, tcase := range tcases {

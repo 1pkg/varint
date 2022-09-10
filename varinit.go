@@ -1,8 +1,14 @@
 package varint
 
-const wsize = 64
+import "math/bits"
 
-type VarInt []uint64
+const (
+	rcap      = 2
+	wsize     = bits.UintSize
+	rcapwsize = wsize * rcap
+)
+
+type VarInt []uint
 
 func NewVarInt(bits, length int) (VarInt, error) {
 	if bits <= 0 {
@@ -11,14 +17,15 @@ func NewVarInt(bits, length int) (VarInt, error) {
 	if length <= 0 {
 		return nil, ErrorLengthIsNegative{Length: length}
 	}
-	size := (bits*length+wsize-1)/wsize + 1
-	vint := VarInt(make([]uint64, size))
-	vint[0] = uint64(bits<<32 | length)
+	size := (bits*length+wsize-1)/wsize + rcap
+	vint := VarInt(make([]uint, size))
+	vint[0] = uint(bits)
+	vint[1] = uint(length)
 	return vint, nil
 }
 
 func (vint VarInt) Length() (bits, length int) {
-	return int(vint[0] >> 32), int(vint[0] << 32 >> 32)
+	return int(vint[0]), int(vint[1])
 }
 
 func (vint VarInt) AtBits(i int) (Bits, error) {
@@ -33,14 +40,14 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
-	bfrom, bto := bsize*i+wsize, bsize*(i+1)-1+wsize
+	bfrom, bto := bsize*i+rcapwsize, bsize*(i+1)-1+rcapwsize
 	low, hiw := (bfrom)/wsize, (bto)/wsize
-	// Calculate left and right shifts to fix the uint64 result.
+	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	fullshift, adjrbshift := lbshift+rbshift, wsize-rbshift
 	// Preallocate a slice to fit all words and start traversal them in reverse order.
-	result := make([]uint64, 0, hiw-low+2)
-	result = append(result, uint64(bsize))
+	result := make([]uint, 0, hiw-low+2)
+	result = append(result, uint(bsize))
 	// Iterate from high to low word and
 	// accumulate the combined words.
 	for k := hiw; k >= low; k-- {
@@ -85,9 +92,9 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
-	bfrom, bto := bsize*i+wsize, bsize*(i+1)-1+wsize
+	bfrom, bto := bsize*i+rcapwsize, bsize*(i+1)-1+rcapwsize
 	low, hiw := (bfrom)/wsize, (bto)/wsize
-	// Calculate left and right shifts to fix the uint64 result.
+	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
