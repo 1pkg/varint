@@ -120,7 +120,7 @@ func TestVarIntAt(t *testing.T) {
 				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits)
 			}
 			if errbits != tcase.errbits {
-				t.Fatalf("expected AtBits error %v doesn't match actual error %d", tcase.errbits, errbits)
+				t.Fatalf("expected AtBits error %v doesn't match actual error %v", tcase.errbits, errbits)
 			}
 			if fmt.Sprintf("%#b", rbits) != tcase.rbin {
 				t.Fatalf("expected binary AtBits result %s doesn't match actual result %#b", tcase.rbin, rbits)
@@ -154,7 +154,7 @@ func TestVarIntSet(t *testing.T) {
 			err:  ErrorIndexIsNegative{Index: -1},
 		},
 		"should return index is out of range error for out of lenght index": {
-			vint: mustNewVarInt(8, 100, fixtureAt),
+			vint: mustNewVarInt(8, 100, fixtureFF),
 			at:   1000,
 			err:  ErrorIndexIsOutOfRange{Index: 1000, Length: 100},
 		},
@@ -199,7 +199,7 @@ func TestVarIntSet(t *testing.T) {
 		t.Run(tname, func(t *testing.T) {
 			if err := tcase.vint.SetBits(tcase.at, tcase.bits); err != nil {
 				if err != tcase.err {
-					t.Fatalf("expected SetBits error %v doesn't match actual error %d", tcase.err, err)
+					t.Fatalf("expected SetBits error %v doesn't match actual error %v", tcase.err, err)
 				}
 				return
 			}
@@ -209,6 +209,83 @@ func TestVarIntSet(t *testing.T) {
 			}
 			if !rbits.Equal(tcase.bits) {
 				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.bits, rbits)
+			}
+		})
+	}
+}
+
+func TestVarIntAdd(t *testing.T) {
+	tcases := map[string]struct {
+		vint  VarInt
+		at    int
+		bits  Bits
+		rbits Bits
+		err   error
+	}{
+		"should return index is negative error for negative index": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   -1,
+			err:  ErrorIndexIsNegative{Index: -1},
+		},
+		"should return index is out of range error for out of lenght index": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   1000,
+			err:  ErrorIndexIsOutOfRange{Index: 1000, Length: 100},
+		},
+		"should return unequal cardinality for not equal bits sizes": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   19,
+			bits: mustNewBits(24, []uint{0x43}),
+			err:  ErrorUnequalBitsCardinality{Bits: 8, BitsX: 24},
+		},
+		"should return expected correct results for same small word varint": {
+			vint:  mustNewVarInt(8, 100, fixtureAt),
+			at:    19,
+			bits:  mustNewBits(8, []uint{0x43}),
+			rbits: mustNewBits(8, []uint{0x86}),
+		},
+		"should return expected correct results for different odd small word varint": {
+			vint:  mustNewVarInt(11, 100, fixtureAt),
+			at:    17,
+			bits:  mustNewBits(11, []uint{0x1C7}),
+			rbits: mustNewBits(11, []uint{0x68E}),
+		},
+		// "should return expected correct results for close to cap word varint": {
+		// 	vint:  mustNewVarInt(63, 100, fixtureAt),
+		// 	at:    2,
+		// 	bits:  mustNewBits(63, []uint{0x376145C86129FCE6}),
+		// 	rbits: mustNewBits(63, []uint{0x6EC28B90C253F9CC}),
+		// },
+		// "should return expected correct results for more than 1 word odd varint": {
+		// 	vint: mustNewVarInt(67, 100, fixtureAt),
+		// 	at:   1,
+		// 	bits: mustNewBits(67, []uint{0x8049162673FA196E, 0x7}),
+		// },
+		// "should return expected correct results for more than 2 word even varint": {
+		// 	vint: mustNewVarInt(190, 100, fixtureAt),
+		// 	at:   1,
+		// 	bits: mustNewBits(190, []uint{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0x31C0B204899DFE76}),
+		// },
+		// "should return expected correct results for more than 3 word odd varint": {
+		// 	vint: mustNewVarInt(217, 100, fixtureAt),
+		// 	at:   2,
+		// 	bits: mustNewBits(217, []uint{0x590244CEFF3B2EF0, 0x5172184A7F3998E0, 0x922C4CE7F432DD8, 0x13B2EF0}),
+		// },
+	}
+	for tname, tcase := range tcases {
+		t.Run(tname, func(t *testing.T) {
+			if err := tcase.vint.AddBits(tcase.at, tcase.bits); err != nil {
+				if err != tcase.err {
+					t.Fatalf("expected AddBits error %v doesn't match actual error %v", tcase.err, err)
+				}
+				return
+			}
+			rbits, err := tcase.vint.AtBits(tcase.at)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !rbits.Equal(tcase.rbits) {
+				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits)
 			}
 		})
 	}

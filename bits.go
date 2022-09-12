@@ -105,7 +105,7 @@ func (bits Bits) Uint() (uint, error) {
 		return 0, nil
 	}
 	if b > wsize {
-		return 0, ErrorBitsUint64Oveflow{Bits: b}
+		return 0, ErrorBitsUintOveflow{Bits: b}
 	}
 	return bits[1], nil
 }

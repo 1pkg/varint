@@ -1,11 +1,10 @@
 package varint
 
-import "math/bits"
+import math_bits "math/bits"
 
 const (
-	rcap      = 2
-	wsize     = bits.UintSize
-	rcapwsize = wsize * rcap
+	rcap  = 2
+	wsize = math_bits.UintSize
 )
 
 type VarInt []uint
@@ -40,7 +39,7 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
-	bfrom, bto := bsize*i+rcapwsize, bsize*(i+1)-1+rcapwsize
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
 	low, hiw := (bfrom)/wsize, (bto)/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -68,7 +67,7 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 			// Advance to mark low word as consumed, result is completed at this point.
 			k--
 		// By default, for any word low != high accumulate next full combined word
-		// by shifting current and next word parts to the right.
+		// by shifting the current and the next word parts to the right.
 		default:
 			result = append(result, (vint[k-1]<<adjrbshift)|(vint[k]>>rbshift))
 		}
@@ -92,7 +91,7 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
-	bfrom, bto := bsize*i+rcapwsize, bsize*(i+1)-1+rcapwsize
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
 	low, hiw := (bfrom)/wsize, (bto)/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -121,13 +120,83 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 			// Advance to mark low word as consumed, result is completed at this point.
 			k--
 		// By default, for any word low != high override word from provided bits
-		// by clearing vint right parts of current and next word and combining them
+		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of word from bits.
 		default:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
 			vint[k-1] = vint[k-1]>>rbshift<<rbshift | bitsb[i]>>adjrbshift
 			k--
 		}
+	}
+	return nil
+}
+
+func (vint VarInt) AddBits(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
+	low, hiw := (bfrom)/wsize, (bto)/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
+	// Calculate word size adjunctive left and right shifts.
+	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
+	// Iterate over bits + from high to low word and
+	// add the combined word of vint and bits into vint.
+	var carry uint
+	for k, i := hiw, 0; i < len(bitsb); i++ {
+		switch {
+		// Special case, the point where low == high word is reached
+		// this means that original word bits from vint need to be
+		// respected. Capture the old bits on left side of last word,
+		// add last part of bits with current word shifted all the way
+		// to the left to capture carry flag correctly, combine the final
+		// word result by restoring original bits captured on the left side
+		// with resulted current word shifted back to the correct position.
+		case k == low:
+			vbl := vint[k] >> adjlbshift << adjlbshift
+			vint[k], carry = math_bits.Add(vint[k]<<lbshift, bitsb[i]<<fullshift, carry)
+			vint[k] = vbl | (vint[k] >> lbshift)
+		// Special case, the point where low+1 == hight word is reached
+		// and leftover low word bits is enough to fit last bits provided word size.
+		// This can be deduced from sum of left bit shift plus right bit shift.
+		// For the current word just do partial addition with right shifted bit.
+		// For the next word this means that original word bits from vint need
+		// to be respected. Capture the old bits on left side of last word,
+		// add last part of bits with current word shifted all the way
+		// to the left to capture carry flag correctly, combine the final
+		// word result by restoring original bits captured on the left side
+		// with resulted current word shifted back to the correct position.
+		case k-1 == low && wsize <= fullshift:
+			vint[k], carry = math_bits.Add(vint[k], bitsb[i]<<rbshift, carry)
+
+			vbl := vint[k-1] >> adjlbshift << adjlbshift
+			vint[k-1], carry = math_bits.Add(vint[k-1]<<lbshift, bitsb[i]>>adjrbshift<<lbshift, carry)
+			vint[k-1] = vbl | (vint[k-1] >> lbshift)
+			// Advance to mark low word as consumed, result is completed at this point.
+			k--
+		// By default, for any word low != high just right shifted parts of
+		// word from provided bits to the current and the next word.
+		default:
+			vint[k], carry = math_bits.Add(vint[k], bitsb[i]<<rbshift, carry)
+			vint[k-1], carry = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift, carry)
+			k--
+		}
+	}
+	if carry > 0 {
+		return ErrorBitsOperationOverflow{Bits: bsize}
 	}
 	return nil
 }

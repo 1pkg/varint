@@ -18,12 +18,12 @@ func (err ErrorLengthIsNegative) Error() string {
 	return fmt.Sprintf("lenght should be strictly positive number, but got %d", err.Length)
 }
 
-type ErrorBitsUint64Oveflow struct {
+type ErrorBitsUintOveflow struct {
 	Bits int
 }
 
-func (err ErrorBitsUint64Oveflow) Error() string {
-	return fmt.Sprintf("bits %d overflows max size of uint64 %d", err.Bits, wsize)
+func (err ErrorBitsUintOveflow) Error() string {
+	return fmt.Sprintf("bits %d overflows max size of uint %d", err.Bits, wsize)
 }
 
 type ErrorBitsBaseOveflow struct {
@@ -58,6 +58,14 @@ type ErrorUnequalBitsCardinality struct {
 
 func (err ErrorUnequalBitsCardinality) Error() string {
 	return fmt.Sprintf("bits %d do not have equal cardinality with %d", err.Bits, err.BitsX)
+}
+
+type ErrorBitsOperationOverflow struct {
+	Bits int
+}
+
+func (err ErrorBitsOperationOverflow) Error() string {
+	return fmt.Sprintf("the operation on bits %d overflows its max size", err.Bits)
 }
 
 type ErrorStringIsNotValidBaseNumber struct {
