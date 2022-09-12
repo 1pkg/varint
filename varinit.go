@@ -112,7 +112,7 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 		// Special case, the point where low+1 == hight word is reached
 		// and leftover low word bits is enough to fit last bits provided word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
-		// In case the sum is greater than word size, this means leftshifting is needed to be used.
+		// In case the sum is greater than word size, this means left shifting is needed to be used.
 		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
@@ -160,38 +160,50 @@ func (vint VarInt) AddBits(i int, bits Bits) error {
 		switch {
 		// Special case, the point where low == high word is reached
 		// this means that original word bits from vint need to be
-		// respected. Capture the old bits on left side of last word,
-		// add last part of bits with current word shifted all the way
-		// to the left to capture carry flag correctly, combine the final
-		// word result by restoring original bits captured on the left side
-		// with resulted current word shifted back to the correct position.
+		// respected, note that bits on the right side preserved by default.
+		// Shift both parts of the word all the way to the left, preserving original
+		// left bits separately, add left shifted carry flag and provided bits,
+		// update the carry flag, finnaly restore separately preserved left bits back
 		case k == low:
-			vbl := vint[k] >> adjlbshift << adjlbshift
-			vint[k], carry = math_bits.Add(vint[k]<<lbshift, bitsb[i]<<fullshift, carry)
-			vint[k] = vbl | (vint[k] >> lbshift)
+			var c1, c2 uint
+			onleft := vint[k] >> adjlbshift << adjlbshift
+			vint[k], c1 = math_bits.Add(vint[k]<<lbshift, carry<<fullshift, 0)
+			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]<<fullshift, 0)
+			carry = c1 + c2
+			vint[k] = onleft | (vint[k] >> lbshift)
 		// Special case, the point where low+1 == hight word is reached
 		// and leftover low word bits is enough to fit last bits provided word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
-		// For the current word just do partial addition with right shifted bit.
-		// For the next word this means that original word bits from vint need
-		// to be respected. Capture the old bits on left side of last word,
-		// add last part of bits with current word shifted all the way
-		// to the left to capture carry flag correctly, combine the final
-		// word result by restoring original bits captured on the left side
-		// with resulted current word shifted back to the correct position.
+		// Shift both parts of the word all the way to the left, preserving original
+		// left bits separately, add left shifted carry flag and provided bits,
+		// update the carry flag, finnaly restore separately preserved left bits back
 		case k-1 == low && wsize <= fullshift:
-			vint[k], carry = math_bits.Add(vint[k], bitsb[i]<<rbshift, carry)
-
-			vbl := vint[k-1] >> adjlbshift << adjlbshift
-			vint[k-1], carry = math_bits.Add(vint[k-1]<<lbshift, bitsb[i]>>adjrbshift<<lbshift, carry)
-			vint[k-1] = vbl | (vint[k-1] >> lbshift)
+			var c1, c2 uint
+			vint[k], c1 = math_bits.Add(vint[k], carry<<rbshift, 0)
+			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]<<rbshift, 0)
+			carry = c1 + c2
+			//
+			onleft := vint[k-1] >> adjlbshift << adjlbshift
+			vint[k-1], c1 = math_bits.Add(vint[k-1]<<lbshift, carry<<lbshift, 0)
+			vint[k-1], c2 = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift<<lbshift, 0)
+			carry = c1 | c2
+			vint[k-1] = onleft | (vint[k-1] >> lbshift)
 			// Advance to mark low word as consumed, result is completed at this point.
 			k--
-		// By default, for any word low != high just right shifted parts of
-		// word from provided bits to the current and the next word.
+		// By default, for any word low != high shift both parts of the word
+		// all the way to the left, preserving original left bits separately,
+		// add left shifted carry flag and provided bits, update the carry flag,
+		// finnaly restore separately preserved left bits back.
 		default:
-			vint[k], carry = math_bits.Add(vint[k], bitsb[i]<<rbshift, carry)
-			vint[k-1], carry = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift, carry)
+			var c1, c2 uint
+			vint[k], c1 = math_bits.Add(vint[k], carry<<rbshift, 0)
+			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]<<rbshift, 0)
+			carry = c1 + c2
+			onleft := vint[k-1] >> rbshift << rbshift
+			vint[k-1], c1 = math_bits.Add(vint[k-1]<<adjrbshift, carry<<adjrbshift, 0)
+			vint[k-1], c2 = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift<<adjrbshift, 0)
+			carry = c1 + c2
+			vint[k-1] = onleft | (vint[k-1] >> adjrbshift)
 			k--
 		}
 	}
