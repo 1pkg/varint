@@ -27,7 +27,7 @@ func (vint VarInt) Length() (bits, length int) {
 	return int(vint[0]), int(vint[1])
 }
 
-func (vint VarInt) AtBits(i int) (Bits, error) {
+func (vint VarInt) Get(i int) (Bits, error) {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return nil, ErrorIndexIsNegative{Index: i}
@@ -75,7 +75,7 @@ func (vint VarInt) AtBits(i int) (Bits, error) {
 	return result, nil
 }
 
-func (vint VarInt) SetBits(i int, bits Bits) error {
+func (vint VarInt) Set(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative{Index: i}
@@ -131,7 +131,7 @@ func (vint VarInt) SetBits(i int, bits Bits) error {
 	return nil
 }
 
-func (vint VarInt) AddBits(i int, bits Bits) error {
+func (vint VarInt) Add(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative{Index: i}
@@ -213,7 +213,7 @@ func (vint VarInt) AddBits(i int, bits Bits) error {
 	return nil
 }
 
-func (vint VarInt) SubBits(i int, bits Bits) error {
+func (vint VarInt) Sub(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative{Index: i}

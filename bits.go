@@ -14,6 +14,9 @@ const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 type Bits []uint
 
 func NewBits(bsize int, bits []uint) (Bits, error) {
+	if bsize == 0 {
+		return nil, nil
+	}
 	lb := len(bits) - 1
 	if lb < 0 {
 		return nil, nil
@@ -27,8 +30,6 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 		words++
 	}
 	switch {
-	case bsize == 0:
-		return nil, nil
 	// Special marker, use a guess min bits size.
 	case bsize < 0:
 		bsize = minbsize
@@ -127,6 +128,10 @@ func (bits Bits) BigInt() *big.Int {
 func (bits Bits) Format(f fmt.State, verb rune) {
 	if bits == nil {
 		fmt.Fprintf(f, "")
+		return
+	}
+	if verb == 'v' {
+		fmt.Fprintf(f, "[%d]{%X}", bits.Bits(), bits)
 		return
 	}
 	bits.BigInt().Format(f, verb)
