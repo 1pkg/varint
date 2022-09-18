@@ -65,7 +65,15 @@ type ErrorBitsOperationOverflow struct {
 }
 
 func (err ErrorBitsOperationOverflow) Error() string {
-	return fmt.Sprintf("the operation on bits %d overflows its max size", err.Bits)
+	return fmt.Sprintf("the operation result on bits %d overflows its max value", err.Bits)
+}
+
+type ErrorBitsOperationUnderflow struct {
+	Bits int
+}
+
+func (err ErrorBitsOperationUnderflow) Error() string {
+	return fmt.Sprintf("the operation result on bits %d underflow its min value", err.Bits)
 }
 
 type ErrorStringIsNotValidBaseNumber struct {

@@ -311,6 +311,92 @@ func TestVarIntAdd(t *testing.T) {
 	}
 }
 
+func TestVarIntSub(t *testing.T) {
+	tcases := map[string]struct {
+		vint  VarInt
+		at    int
+		bits  Bits
+		rbits Bits
+		err   error
+	}{
+		"should return index is negative error for negative index": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   -1,
+			err:  ErrorIndexIsNegative{Index: -1},
+		},
+		"should return index is out of range error for out of lenght index": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   1000,
+			err:  ErrorIndexIsOutOfRange{Index: 1000, Length: 100},
+		},
+		"should return unequal cardinality for not equal bits sizes": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   19,
+			bits: mustNewBits(24, []uint{0x43}),
+			err:  ErrorUnequalBitsCardinality{Bits: 8, BitsX: 24},
+		},
+		"should return bits underflow error for underflowing bits operation": {
+			vint: mustNewVarInt(8, 100, fixtureAt),
+			at:   19,
+			bits: mustNewBits(8, []uint{0x48}),
+			err:  ErrorBitsOperationUnderflow{Bits: 8},
+		},
+		"should return expected correct results for same small word varint": {
+			vint:  mustNewVarInt(8, 100, fixtureAt),
+			at:    19,
+			bits:  mustNewBits(8, []uint{0x40}),
+			rbits: mustNewBits(8, []uint{0x3}),
+		},
+		"should return expected correct results for different odd small word varint": {
+			vint:  mustNewVarInt(11, 100, fixtureAt),
+			at:    17,
+			bits:  mustNewBits(11, []uint{0x1C7}),
+			rbits: mustNewBits(11, []uint{0x300}),
+		},
+		"should return expected correct results for close to cap word varint": {
+			vint:  mustNewVarInt(63, 100, fixtureAt),
+			at:    2,
+			bits:  mustNewBits(63, []uint{0x376145C86129FCE6}),
+			rbits: mustNewBits(63, []uint{0x0}),
+		},
+		"should return expected correct results for more than 1 word odd varint": {
+			vint:  mustNewVarInt(67, 100, fixtureAt),
+			at:    1,
+			bits:  mustNewBits(67, []uint{0x49162673FA196E}),
+			rbits: mustNewBits(67, []uint{0x08000000000000000, 0x7}),
+		},
+		"should return expected correct results for more than 2 word even varint": {
+			vint:  mustNewVarInt(190, 100, fixtureAt),
+			at:    1,
+			bits:  mustNewBits(190, []uint{0x5BB0A2E43094FE73, 0x5DE01245899CFE86, 0xC0B204899DFE76}),
+			rbits: mustNewBits(190, []uint{0x0000000000000000, 0x0000000000000000, 0x3100000000000000}),
+		},
+		"should return expected correct results for more than 3 word odd varint": {
+			vint:  mustNewVarInt(217, 100, fixtureAt),
+			at:    2,
+			bits:  mustNewBits(217, []uint{0xB204899DFE765DE0, 0xA2E43094FE7331C0, 0x1245899CFE865BB0, 0x3B2EF0}),
+			rbits: mustNewBits(217, []uint{0xA6FDBB3100C4D110, 0xAE8DE7B580C6671F, 0xF6DD3B3180BCD227, 0xFFFFFF}),
+		},
+	}
+	for tname, tcase := range tcases {
+		t.Run(tname, func(t *testing.T) {
+			if err := tcase.vint.SubBits(tcase.at, tcase.bits); err != nil {
+				if err != tcase.err {
+					t.Fatalf("expected AddBits error %v doesn't match actual error %v", tcase.err, err)
+				}
+				return
+			}
+			rbits, err := tcase.vint.AtBits(tcase.at)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !rbits.Equal(tcase.rbits) {
+				t.Fatalf("expected AtBits result %v doesn't match actual result %v", tcase.rbits, rbits)
+			}
+		})
+	}
+}
+
 func FuzzVarIntSetAt(f *testing.F) {
 	const l = 10
 	for _, b62 := range b62Seed {
@@ -397,6 +483,75 @@ func FuzzVarIntAdd(f *testing.F) {
 			t.Fatalf("expected AtBits result %v doesn't match actual result %v", bitsSum, b)
 		}
 		// Third, check that others bits were not affected.
+		b, err = vint.AtBits(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !b.Equal(zero) {
+			t.Fatalf("expected AtBits result %v doesn't match actual result %v", zero, b)
+		}
+		b, err = vint.AtBits(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !b.Equal(zero) {
+			t.Fatalf("expected AtBits result %v doesn't match actual result %v", zero, b)
+		}
+	})
+}
+
+func FuzzVarIntSub(f *testing.F) {
+	const l = 3
+	for _, b62 := range b62Seed {
+		f.Add(b62)
+	}
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	f.Fuzz(func(t *testing.T, b62 string) {
+		// Initialize fuzz original bits and extra random bits
+		// in the range of [1, bits]. Then bootstrap big ints
+		// from them, calculate bit ints sub and compare to
+		// calculated sub of original - random bits.
+		bitsOrig, err := NewBitsString(b62, 62)
+		if err != nil || bitsOrig == nil {
+			return
+		}
+		bigOrig := bitsOrig.BigInt()
+		bigRnd := big.NewInt(0).Rand(rnd, bigOrig)
+		bigSub := big.NewInt(0).Sub(bigOrig, bigRnd)
+		bitsSub, err := NewBitsBigInt(bigSub)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Fix the cardinarity for sub bits.
+		bitsSub, err = NewBits(bitsOrig.Bits(), bitsSub.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+		bitsRnd, err := NewBitsBigInt(bigRnd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bitsRnd == nil {
+			return
+		}
+		// Fix the cardinarity for random bits.
+		bitsRnd[0] = uint(bitsOrig.Bits())
+		vint, zero := mustNewVarInt(bitsOrig.Bits(), l, fixture0), mustNewBits(bitsOrig.Bits(), fixture0)
+		// First, set original bits and sub random bits.
+		if err := vint.SetBits(1, bitsOrig); err != nil {
+			t.Fatal(err)
+		}
+		if err := vint.SubBits(1, bitsRnd); err != nil {
+			t.Fatal(err)
+		}
+		b, err := vint.AtBits(1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !b.Equal(bitsSub) {
+			t.Fatalf("expected AtBits result %v doesn't match actual result %v", bitsSub, b)
+		}
+		// Second, check that others bits were not affected.
 		b, err = vint.AtBits(0)
 		if err != nil {
 			t.Fatal(err)

@@ -170,7 +170,7 @@ func (vint VarInt) AddBits(i int, bits Bits) error {
 			vint[k], c1 = math_bits.Add(vint[k]<<lbshift, carry<<fullshift, 0)
 			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]<<fullshift, 0)
 			carry = c1 + c2
-			vint[k] = onleft | (vint[k] >> lbshift)
+			vint[k] = onleft | vint[k]>>lbshift
 		// Special case, the point where low+1 == hight word is reached
 		// and leftover low word bits is enough to fit last bits provided word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
@@ -187,7 +187,7 @@ func (vint VarInt) AddBits(i int, bits Bits) error {
 			vint[k-1], c1 = math_bits.Add(vint[k-1]<<lbshift, carry<<lbshift, 0)
 			vint[k-1], c2 = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift<<lbshift, 0)
 			carry = c1 | c2
-			vint[k-1] = onleft | (vint[k-1] >> lbshift)
+			vint[k-1] = onleft | vint[k-1]>>lbshift
 			// Advance to mark low word as consumed, result is completed at this point.
 			k--
 		// By default, for any word low != high shift both parts of the word
@@ -203,12 +203,85 @@ func (vint VarInt) AddBits(i int, bits Bits) error {
 			vint[k-1], c1 = math_bits.Add(vint[k-1]<<adjrbshift, carry<<adjrbshift, 0)
 			vint[k-1], c2 = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift<<adjrbshift, 0)
 			carry = c1 + c2
-			vint[k-1] = onleft | (vint[k-1] >> adjrbshift)
+			vint[k-1] = onleft | vint[k-1]>>adjrbshift
 			k--
 		}
 	}
 	if carry > 0 {
 		return ErrorBitsOperationOverflow{Bits: bsize}
+	}
+	return nil
+}
+
+func (vint VarInt) SubBits(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
+	low, hiw := (bfrom)/wsize, (bto)/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
+	// Calculate word size adjunctive left and right shifts.
+	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
+	// Iterate over bits + from high to low word and
+	// add the combined word of vint and bits into vint.
+	var borrow uint
+	for k, i := hiw, 0; i < len(bitsb); i++ {
+		switch {
+		// Special case, the point where low == high word is reached
+		// this means that original word bits from vint need to be
+		// respected, note that bits on the right side preserved by default.
+		// Shift both parts of the word all the way to the right, preserving original
+		// right bits separately, substitute both borrow flag and right shifted provided bits,
+		// finnaly restore separately preserved left bits back.
+		case k == low:
+			vbr, vbl := vint[k]<<adjrbshift>>adjrbshift, vint[k]>>adjlbshift<<adjlbshift
+			vint[k], borrow = math_bits.Sub(vint[k]<<lbshift>>fullshift, bitsb[i], borrow)
+			vint[k] = vbl | vint[k]<<fullshift>>lbshift | vbr
+		// Special case, the point where low+1 == hight word is reached
+		// and leftover low word bits is enough to fit last bits provided word size.
+		// This can be deduced from sum of left bit shift plus right bit shift.
+		// Shift both parts of the word all the way to the right, preserving original
+		// right bits separately, substitute both borrow flag and right shifted provided bits,
+		// finnaly restore separately preserved left bits back.
+		case k-1 == low && wsize <= fullshift:
+			onright := vint[k] << adjrbshift >> adjrbshift
+			vint[k], borrow = math_bits.Sub(vint[k]>>rbshift, bitsb[i]<<rbshift>>rbshift, borrow)
+			vint[k] = vint[k]<<rbshift | onright
+			//
+			onleft := vint[k-1] >> adjlbshift << adjlbshift
+			vint[k-1], borrow = math_bits.Sub(vint[k-1]<<lbshift>>lbshift, bitsb[i]>>adjrbshift, borrow)
+			vint[k-1] = onleft | vint[k-1]<<lbshift>>lbshift
+			// Advance to mark low word as consumed, result is completed at this point.
+			k--
+		// By default, for any word low != high shift both parts of the word
+		// all the way to the right, preserving original right bits separately,
+		// substitute both borrow flag and right shifted provided bits,
+		// finnaly restore separately preserved left bits back.
+		default:
+			onright := vint[k] << adjrbshift >> adjrbshift
+			vint[k], borrow = math_bits.Sub(vint[k]>>rbshift, bitsb[i]<<rbshift>>rbshift, borrow)
+			vint[k] = vint[k]<<rbshift | onright
+			onleft := vint[k-1] >> rbshift << rbshift
+			vint[k-1], borrow = math_bits.Sub(vint[k-1]<<adjrbshift>>adjrbshift, bitsb[i]>>adjrbshift, borrow)
+			vint[k-1] = onleft | vint[k-1]<<adjrbshift>>adjrbshift
+			k--
+		}
+	}
+	if borrow > 0 {
+		return ErrorBitsOperationUnderflow{Bits: bsize}
 	}
 	return nil
 }
