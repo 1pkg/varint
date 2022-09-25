@@ -397,6 +397,73 @@ func TestVarIntSub(t *testing.T) {
 	}
 }
 
+func TestVarIntNot(t *testing.T) {
+	tcases := map[string]struct {
+		vint VarInt
+		i    int
+		bits Bits
+		err  error
+	}{
+		"should return index is negative error for negative index": {
+			vint: mustNewVarInt(8, 100, fixtureDefault),
+			i:    -1,
+			err:  ErrorIndexIsNegative{Index: -1},
+		},
+		"should return index is out of range error for out of lenght index": {
+			vint: mustNewVarInt(8, 100, fixtureDefault),
+			i:    1000,
+			err:  ErrorIndexIsOutOfRange{Index: 1000, Length: 100},
+		},
+		"should return expected correct results for same small word varint": {
+			vint: mustNewVarInt(8, 100, fixtureDefault),
+			i:    19,
+			bits: mustNewBits(8, []uint{0xBC}),
+		},
+		"should return expected correct results for different odd small word varint": {
+			vint: mustNewVarInt(11, 100, fixtureDefault),
+			i:    17,
+			bits: mustNewBits(11, []uint{0x338}),
+		},
+		"should return expected correct results for close to cap word varint": {
+			vint: mustNewVarInt(63, 100, fixtureDefault),
+			i:    2,
+			bits: mustNewBits(63, []uint{0x489EBA379ED60319}),
+		},
+		"should return expected correct results for more than 1 word odd varint": {
+			vint: mustNewVarInt(67, 100, fixtureDefault),
+			i:    1,
+			bits: mustNewBits(67, []uint{0x7FB6E9D98C05E691}),
+		},
+		"should return expected correct results for more than 2 word even varint": {
+			vint: mustNewVarInt(190, 100, fixtureDefault),
+			i:    1,
+			bits: mustNewBits(190, []uint{0xA44F5D1BCF6B018C, 0xA21FEDBA76630179, 0xE3F4DFB76620189}),
+		},
+		"should return expected correct results for more than 3 word odd varint": {
+			vint: mustNewVarInt(217, 100, fixtureDefault),
+			i:    2,
+			bits: mustNewBits(217, []uint{0xA6FDBB3100C4D10F, 0xAE8DE7B580C6671F, 0xF6DD3B3180BCD227, 0xC4D10F}),
+		},
+	}
+	for tname, tcase := range tcases {
+		t.Run(tname, func(t *testing.T) {
+			if err := tcase.vint.Not(tcase.i); err != nil {
+				if err != tcase.err {
+					t.Fatalf("expected not error %v doesn't match actual error %v", tcase.err, err)
+				}
+				return
+			}
+			bits, err := tcase.vint.Get(tcase.i)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bits.Equal(tcase.bits) {
+				t.Fatalf("expected not result %v doesn't match actual result %v", tcase.bits, bits)
+			}
+		})
+	}
+}
+
 func FuzzVarIntSetGet(f *testing.F) {
 	const l = 10
 	for _, b62 := range b62Seed {
@@ -565,6 +632,54 @@ func FuzzVarIntSub(f *testing.F) {
 		}
 		if !b.Equal(zero) {
 			t.Fatalf("expected result %v doesn't match actual result %v", zero, b)
+		}
+	})
+}
+
+func FuzzVarIntNot(f *testing.F) {
+	const l = 3
+	for _, b62 := range b62Seed {
+		f.Add(b62)
+	}
+	f.Fuzz(func(t *testing.T, b62 string) {
+		// Initialize fuzz original bits in vint and
+		// apply not two times, first time
+		bits, err := NewBitsString(b62, 62)
+		if err != nil || bits == nil {
+			return
+		}
+		vint := mustNewVarInt(bits.Bits(), l, fixture0)
+		if err := vint.Set(1, bits); err != nil {
+			t.Fatalf("set error %v is not expected on %v", err, bits)
+		}
+		b, err := vint.Get(1)
+		if err != nil {
+			t.Fatalf("get error %v is not expected on %v", err, bits)
+		}
+		if !b.Equal(bits) {
+			t.Fatalf("expected result %v doesn't match actual result %v", bits, b)
+		}
+		// First, apply not first time.
+		if err := vint.Not(1); err != nil {
+			t.Fatalf("not error %v is not expected on %v", err, bits)
+		}
+		b, err = vint.Get(1)
+		if err != nil {
+			t.Fatalf("get error %v is not expected on %v", err, bits)
+		}
+		if b.Equal(bits) {
+			t.Fatalf("expected result %v doesn't match actual result not %v", bits, b)
+		}
+		// Second, apply not second time.
+		if err := vint.Not(1); err != nil {
+			t.Fatalf("not error %v is not expected on %v", err, bits)
+		}
+		b, err = vint.Get(1)
+		if err != nil {
+			t.Fatalf("get error %v is not expected on %v", err, bits)
+		}
+		if !b.Equal(bits) {
+			t.Fatalf("expected result %v doesn't match actual result not %v", bits, b)
 		}
 	})
 }
