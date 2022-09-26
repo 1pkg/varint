@@ -19,7 +19,7 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 	}
 	lb := len(bits) - 1
 	if lb < 0 {
-		return nil, nil
+		return []uint{uint(bsize), 0}, nil
 	}
 	// Calculate min bits size to hold provided bits slice.
 	minbsize := wsize*(lb) + math_bits.Len(uint(bits[lb]))
