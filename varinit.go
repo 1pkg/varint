@@ -27,58 +27,73 @@ func (vint VarInt) Length() (bits, length int) {
 	return int(vint[0]), int(vint[1])
 }
 
-func (vint VarInt) Get(i int) (Bits, error) {
-	if err := vint.check(i, nil); err != nil {
-		return nil, err
+func (vint VarInt) Get(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize := int(vint[0])
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	fullshift, adjrbshift := lbshift+rbshift, wsize-rbshift
-	// Preallocate a slice to fit all words and start traversal them in reverse order.
-	result := make([]uint, 0, hiw-low+2)
-	result = append(result, uint(bsize))
 	// Iterate from high to low word and
 	// accumulate the combined words.
-	for k := hiw; k >= low; k-- {
+	for i, k := 1, hiw; k >= low; k-- {
 		switch {
 		// Special case, the point where low == high word is reached
 		// this means that extra word is needed to fit the last part
 		// of low word. Combine it by shifting all excess bits on both
 		// left side and ride side of low word.
 		case k == low:
-			result = append(result, (vint[k] << lbshift >> fullshift))
+			bits[i] = vint[k] << lbshift >> fullshift
 		// Special case, the point where low+1 == hight word is reached
 		// and leftover low word bits will fit into last result word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
 		// In case the sum is greater than word size, this means no extra result word is needed.
 		// Accumulate right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
-			result = append(result, (vint[k-1]<<lbshift>>(lbshift-adjrbshift))|(vint[k]>>rbshift))
+			bits[i] = (vint[k-1] << lbshift >> (lbshift - adjrbshift)) | (vint[k] >> rbshift)
 			// Advance to mark low word as consumed, result is completed at this point.
 			k--
 		// By default, for any word low != high accumulate next full combined word
 		// by shifting the current and the next word parts to the right.
 		default:
-			result = append(result, (vint[k-1]<<adjrbshift)|(vint[k]>>rbshift))
+			bits[i] = vint[k-1]<<adjrbshift | vint[k]>>rbshift
 		}
+		i++
 	}
-	return result, nil
+	return nil
 }
 
 func (vint VarInt) Set(i int, bits Bits) error {
-	if err := vint.check(i, bits); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize, bitsb := int(vint[0]), bits.Bytes()
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -118,14 +133,23 @@ func (vint VarInt) Set(i int, bits Bits) error {
 }
 
 func (vint VarInt) Add(i int, bits Bits) error {
-	if err := vint.check(i, bits); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize, bitsb := int(vint[0]), bits.Bytes()
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -191,14 +215,23 @@ func (vint VarInt) Add(i int, bits Bits) error {
 }
 
 func (vint VarInt) Sub(i int, bits Bits) error {
-	if err := vint.check(i, bits); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize, bitsb := int(vint[0]), bits.Bytes()
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -255,14 +288,19 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 }
 
 func (vint VarInt) Not(i int) error {
-	if err := vint.check(i, nil); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize := int(vint[0])
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -301,14 +339,23 @@ func (vint VarInt) Not(i int) error {
 }
 
 func (vint VarInt) And(i int, bits Bits) error {
-	if err := vint.check(i, bits); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize, bitsb := int(vint[0]), bits.Bytes()
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -348,14 +395,23 @@ func (vint VarInt) And(i int, bits Bits) error {
 }
 
 func (vint VarInt) Or(i int, bits Bits) error {
-	if err := vint.check(i, bits); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize, bitsb := int(vint[0]), bits.Bytes()
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -395,14 +451,23 @@ func (vint VarInt) Or(i int, bits Bits) error {
 }
 
 func (vint VarInt) Xor(i int, bits Bits) error {
-	if err := vint.check(i, bits); err != nil {
-		return err
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
 	}
-	bsize, bitsb := int(vint[0]), bits.Bytes()
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
-	low, hiw := (bfrom)/wsize, (bto)/wsize
+	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
@@ -437,26 +502,6 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 			vint[k-1] = vint[k-1]>>rbshift<<rbshift | vint[k-1]<<adjrbshift>>adjrbshift ^ bitsb[i]>>adjrbshift
 			k--
 		}
-	}
-	return nil
-}
-
-func (vint VarInt) check(i int, bits Bits) error {
-	// Check that non negative index was provided.
-	if i < 0 {
-		return ErrorIndexIsNegative{Index: i}
-	}
-	// Check that requested index is inside varint range.
-	bsize, lenght := vint.Length()
-	if i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
-	}
-	// Check bits cardinarity only if provided.
-	if bits == nil {
-		return nil
-	}
-	if bzisex := bits.Bits(); bzisex != bsize {
-		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
 	}
 	return nil
 }

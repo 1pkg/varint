@@ -3,6 +3,7 @@ package varint
 import (
 	"math/big"
 	"math/rand"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -14,6 +15,15 @@ var b62Seed = []string{
 	"2erdLVDT8PFu",
 	"XHPM4p4ZzSAKHOqUVckuRNpvF0eBpnGt",
 	"3rNk68AgS73raYcuFFPjD3MPzU5ELtIwjHVcu",
+}
+
+func mallocated(f func()) float64 {
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	return float64(after.TotalAlloc-before.TotalAlloc) / 1024 / 1024
 }
 
 func mustNewVarInt(bits, length int) VarInt {
@@ -41,8 +51,8 @@ func mustNewBitsBigInt(i *big.Int) Bits {
 }
 
 func mustVarIntGet(vint VarInt, i int) Bits {
-	b, err := vint.Get(i)
-	if err != nil {
+	b := mustNewBits(int(vint[0]), nil)
+	if err := vint.Get(i, b); err != nil {
 		panic(err)
 	}
 	return b
@@ -62,25 +72,29 @@ func mustVarIntEqualZero(vint VarInt, i int) {
 	}
 }
 
-func TestVarIntCheck(t *testing.T) {
-	_, err := NewVarInt(-1, 100)
-	if terr := (ErrorBitsIsNegative{Bits: -1}); err != terr {
-		t.Fatalf("expected error %v doesn't match actual error %v", terr, err)
-	}
-	_, err = NewVarInt(100, -1)
-	if terr := (ErrorLengthIsNegative{Length: -1}); err != terr {
-		t.Fatalf("expected error %v doesn't match actual error %v", terr, err)
-	}
-	vint := mustNewVarInt(100, 100)
-	if err, terr := vint.check(-1, nil), (ErrorIndexIsNegative{Index: -1}); err != terr {
-		t.Fatalf("expected error %v doesn't match actual error %v", terr, err)
-	}
-	if err, terr := vint.check(1000, nil), (ErrorIndexIsOutOfRange{Index: 1000, Length: 100}); err != terr {
-		t.Fatalf("expected error %v doesn't match actual error %v", terr, err)
-	}
-	if err, terr := vint.check(10, mustNewBits(200, nil)), (ErrorUnequalBitsCardinality{Bits: 100, BitsX: 200}); err != terr {
-		t.Fatalf("expected error %v doesn't match actual error %v", terr, err)
-	}
+func BenchmarkAddGetVarIntVSSlice(b *testing.B) {
+	const size = 100000000
+	b.Run("Benchmark VarInt Add/Get", func(b *testing.B) {
+		m := mallocated(func() {
+			vint := mustNewVarInt(4, size)
+			bits, tmp := mustNewBits(4, []uint{10}), mustNewBits(4, nil)
+			for n := 0; n < b.N; n++ {
+				_ = vint.Add(n%size, bits)
+				_ = vint.Get(n%size, tmp)
+			}
+		})
+		b.ReportMetric(m, "M_allocated")
+	})
+	b.Run("Benchmark Slice Add/Get", func(b *testing.B) {
+		m := mallocated(func() {
+			slice := make([]uint8, size)
+			for n := 0; n < b.N; n++ {
+				slice[n%size] += 10
+				_ = slice[n%size]
+			}
+		})
+		b.ReportMetric(m, "M_allocated")
+	})
 }
 
 func FuzzVarIntSetGet(f *testing.F) {
@@ -101,8 +115,8 @@ func FuzzVarIntSetGet(f *testing.F) {
 			}
 		}
 		for i := 0; i < l; i++ {
-			b, err := vint.Get(i)
-			if err != nil {
+			b := mustNewBits(bits.Bits(), nil)
+			if err := vint.Get(i, b); err != nil {
 				t.Fatalf("get error %v is not expected on %v", err, bits)
 			}
 			// Equals to bits or zero.

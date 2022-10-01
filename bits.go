@@ -15,14 +15,13 @@ type Bits []uint
 
 func NewBits(bsize int, bits []uint) (Bits, error) {
 	if bsize == 0 {
-		return nil, nil
-	}
-	lb := len(bits) - 1
-	if lb < 0 {
-		return []uint{uint(bsize), 0}, nil
+		return []uint{0}, nil
 	}
 	// Calculate min bits size to hold provided bits slice.
-	minbsize := wsize*(lb) + math_bits.Len(uint(bits[lb]))
+	minbsize := 0
+	if lb := len(bits) - 1; lb > -1 {
+		minbsize = wsize*(lb) + math_bits.Len(uint(bits[lb]))
+	}
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
 	words, bsizemod := bsize/wsize, bsize%wsize
@@ -87,16 +86,10 @@ func (bits Bits) Equal(b Bits) bool {
 }
 
 func (bits Bits) Bits() int {
-	if bits == nil {
-		return 0
-	}
 	return int(bits[0])
 }
 
 func (bits Bits) Bytes() []uint {
-	if bits == nil {
-		return nil
-	}
 	return bits[1:]
 }
 
@@ -112,9 +105,6 @@ func (bits Bits) Uint() (uint, error) {
 }
 
 func (bits Bits) BigInt() *big.Int {
-	if bits == nil {
-		return nil
-	}
 	i := new(big.Int)
 	bytes := bits.Bytes()
 	words := make([]big.Word, 0, len(bytes))
@@ -126,10 +116,6 @@ func (bits Bits) BigInt() *big.Int {
 }
 
 func (bits Bits) Format(f fmt.State, verb rune) {
-	if bits == nil {
-		fmt.Fprintf(f, "")
-		return
-	}
 	if verb == 'v' {
 		fmt.Fprintf(f, "[%d]{%X}", bits.Bits(), bits)
 		return
@@ -142,9 +128,6 @@ func (bits Bits) String() string {
 }
 
 func (bits Bits) Base(base int) ([]byte, error) {
-	if bits == nil {
-		return nil, nil
-	}
 	if base < 2 || base > 62 {
 		return nil, ErrorBitsBaseOveflow{Base: base}
 	}
