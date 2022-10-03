@@ -98,7 +98,7 @@ func (vint VarInt) Set(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
-	// Iterate over bits + from high to low word and
+	// Iterate over bits and from high to low word and
 	// override the combined word in vint.
 	for k, i := hiw, 0; i < len(bitsb); i++ {
 		switch {
@@ -154,7 +154,7 @@ func (vint VarInt) Add(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
-	// Iterate over bits + from high to low word and
+	// Iterate over bits and from high to low word and
 	// add the combined word of vint and bits into vint.
 	var carry uint
 	for k, i := hiw, 0; i < len(bitsb); i++ {
@@ -236,8 +236,8 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
-	// Iterate over bits + from high to low word and
-	// add the combined word of vint and bits into vint.
+	// Iterate over bits and from high to low word and
+	// substract the combined word of vint and bits into vint.
 	var borrow uint
 	for k, i := hiw, 0; i < len(bitsb); i++ {
 		switch {
@@ -306,7 +306,7 @@ func (vint VarInt) Not(i int) error {
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
 	// Iterate from high to low word and
-	// invert ^ the combined words.
+	// invert and override the combined words.
 	for k := hiw; k >= low; k-- {
 		switch {
 		// Special case, the point where low == high word is reached
@@ -360,7 +360,7 @@ func (vint VarInt) And(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
-	// Iterate over bits + from high to low word and
+	// Iterate over bits and from high to low word and
 	// override the combined word in vint.
 	for k, i := hiw, 0; i < len(bitsb); i++ {
 		switch {
@@ -416,7 +416,7 @@ func (vint VarInt) Or(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
-	// Iterate over bits + from high to low word and
+	// Iterate over bits from high to low word and
 	// override the combined word in vint.
 	for k, i := hiw, 0; i < len(bitsb); i++ {
 		switch {
@@ -472,7 +472,7 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Calculate word size adjunctive left and right shifts.
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
-	// Iterate over bits + from high to low word and
+	// Iterate over bits and from high to low word and
 	// override the combined word in vint.
 	for k, i := hiw, 0; i < len(bitsb); i++ {
 		switch {
@@ -501,6 +501,77 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>rbshift<<rbshift ^ bitsb[i]<<rbshift
 			vint[k-1] = vint[k-1]>>rbshift<<rbshift | vint[k-1]<<adjrbshift>>adjrbshift ^ bitsb[i]>>adjrbshift
 			k--
+		}
+	}
+	return nil
+}
+
+func (vint VarInt) Rsh(i, n int) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
+	low, hiw, nw := bfrom/wsize, bto/wsize, n/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift, nbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto, n%wsize
+	adjlbshift, adjrbshift, adjnbshift := wsize-lbshift, wsize-rbshift, wsize-nbshift
+	// Iterate from high to low word and
+	// shift and override the combined words.
+loop:
+	for k := hiw; k >= low; k-- {
+		// First get current shifted word position and
+		// original copy of the current word.
+		knw, val := k+nw, vint[k]
+		// Second consume and clear current word bits and
+		// fix copy of the current word if it's low word.
+		switch {
+		case k == hiw && k == low:
+			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>adjlbshift<<adjlbshift
+			val = val << lbshift >> lbshift
+		case k == hiw:
+			vint[k] = vint[k] << adjrbshift >> adjrbshift
+		case k == low:
+			vint[k] = vint[k] >> adjlbshift << adjlbshift
+			val = val << lbshift >> lbshift
+		default:
+			vint[k] = 0
+		}
+		// Then split the current word into two parts
+		// accordingly to provided and adjunctive shifts.
+		v1, v2 := val>>nbshift, val<<adjnbshift
+		// For main part, based on the operated index, either:
+		// - skip the shift, if out of range
+		// - apply partial word respecting high word boundary
+		// - apply full shifted word
+		switch {
+		case knw > hiw:
+			continue loop
+		case knw == hiw:
+			v1 = v1 >> rbshift << rbshift
+			fallthrough
+		default:
+			vint[knw] = vint[knw] | v1
+		}
+		// For carryover part, based on the operated index, either:
+		// - skip the shift, if out of range
+		// - apply partial word respecting high word boundary
+		// - apply full shifted word
+		switch {
+		case knw+1 > hiw:
+			continue loop
+		case knw+1 == hiw:
+			v2 = v2 >> rbshift << rbshift
+			fallthrough
+		default:
+			vint[knw+1] = vint[knw+1] | v2
 		}
 	}
 	return nil
