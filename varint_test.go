@@ -13,6 +13,7 @@ var b62Seed = []string{
 	"Jj",
 	"4kmkU49SllO",
 	"2erdLVDT8PFu",
+	"3X00000000000000000000",
 	"XHPM4p4ZzSAKHOqUVckuRNpvF0eBpnGt",
 	"3rNk68AgS73raYcuFFPjD3MPzU5ELtIwjHVcu",
 }
@@ -405,19 +406,56 @@ func FuzzVarIntRsh(f *testing.F) {
 		big, n := bits.BigInt(), rnd.Int()%(bits.Bits()+1)
 		big = big.Rsh(big, uint(n))
 		// Fix the cardinarity for sub bits.
-		bitsRsh := tt.NewBitsBigInt(big)
-		bitsRsh = tt.NewBits(bits.Bits(), bitsRsh.Bytes())
+		bitssh := tt.NewBitsBigInt(big)
+		bitssh = tt.NewBits(bits.Bits(), bitssh.Bytes())
 		vint := tt.NewVarInt(bits.Bits(), l)
 		// First, set original bits.
 		tt.VarIntSet(vint, 1, bits)
 		tt.VarIntSet(vint, 0, bits)
 		tt.VarIntSet(vint, 2, bits)
+		// Then shift bits to the right.
 		if err := vint.Rsh(1, n); err != nil {
 			t.Fatalf("rsh error %v is not expected on %v with %v", err, bits, n)
 		}
 		b := tt.VarIntGet(vint, 1)
-		if !b.Equal(bitsRsh) {
-			t.Fatalf("expected result %v doesn't match actual result %v", bitsRsh, b)
+		if !b.Equal(bitssh) {
+			t.Fatalf("expected result %v doesn't match actual result %v", bitssh, b)
+		}
+		// Second, check that others bits were not affected.
+		tt.VarIntEqual(vint, 0, bits)
+		tt.VarIntEqual(vint, 2, bits)
+	})
+}
+
+func FuzzVarIntLsh(f *testing.F) {
+	const l = 3
+	for _, b62 := range b62Seed {
+		f.Add(b62)
+	}
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	f.Fuzz(func(t *testing.T, b62 string) {
+		tt := thelper{t}
+		// Initialize fuzz original bits and bootstrap big int,
+		// shift them both bits and bigint to the left [0, bits+1].
+		// Finaly, compare calculated bit shifts with oriranal bits.
+		bits := tt.NewBitsB62(b62)
+		big, n := bits.BigInt(), rnd.Int()%(bits.Bits()+1)
+		big = big.Lsh(big, uint(n))
+		// Fix the cardinarity for sub bits.
+		bitssh := tt.NewBitsBigInt(big)
+		bitssh = tt.NewBits(bits.Bits(), bitssh.Bytes())
+		vint := tt.NewVarInt(bits.Bits(), l)
+		// First, set original bits.
+		tt.VarIntSet(vint, 1, bits)
+		tt.VarIntSet(vint, 0, bits)
+		tt.VarIntSet(vint, 2, bits)
+		// Then shift bits to the left.
+		if err := vint.Lsh(1, n); err != nil {
+			t.Fatalf("lsh error %v is not expected on %v with %v", err, bits, n)
+		}
+		b := tt.VarIntGet(vint, 1)
+		if !b.Equal(bitssh) {
+			t.Fatalf("expected result %v doesn't match actual result %v", bitssh, b)
 		}
 		// Second, check that others bits were not affected.
 		tt.VarIntEqual(vint, 0, bits)

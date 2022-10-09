@@ -117,16 +117,15 @@ func (vint VarInt) Set(i int, bits Bits) error {
 		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
-			vint[k-1] = vint[k-1]>>adjlbshift<<adjlbshift | bitsb[i]>>adjrbshift
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			vint[k] = vint[k]>>adjlbshift<<adjlbshift | bitsb[i]>>adjrbshift
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of word from bits.
 		default:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
-			vint[k-1] = vint[k-1]>>rbshift<<rbshift | bitsb[i]>>adjrbshift
 			k--
+			vint[k] = vint[k]>>rbshift<<rbshift | bitsb[i]>>adjrbshift
 		}
 	}
 	return nil
@@ -183,14 +182,12 @@ func (vint VarInt) Add(i int, bits Bits) error {
 			vint[k], c1 = math_bits.Add(vint[k], carry<<rbshift, 0)
 			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]<<rbshift, 0)
 			carry = c1 + c2
-			//
-			onleft := vint[k-1] >> adjlbshift << adjlbshift
-			vint[k-1], c1 = math_bits.Add(vint[k-1]<<lbshift, carry<<lbshift, 0)
-			vint[k-1], c2 = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift<<lbshift, 0)
-			carry = c1 | c2
-			vint[k-1] = onleft | vint[k-1]>>lbshift
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			onleft := vint[k] >> adjlbshift << adjlbshift
+			vint[k], c1 = math_bits.Add(vint[k]<<lbshift, carry<<lbshift, 0)
+			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]>>adjrbshift<<lbshift, 0)
+			carry = c1 | c2
+			vint[k] = onleft | vint[k]>>lbshift
 		// By default, for any word low != high shift both parts of the word
 		// all the way to the left, preserving original left bits separately,
 		// add left shifted carry flag and provided bits, update the carry flag,
@@ -200,12 +197,17 @@ func (vint VarInt) Add(i int, bits Bits) error {
 			vint[k], c1 = math_bits.Add(vint[k], carry<<rbshift, 0)
 			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]<<rbshift, 0)
 			carry = c1 + c2
-			onleft := vint[k-1] >> rbshift << rbshift
-			vint[k-1], c1 = math_bits.Add(vint[k-1]<<adjrbshift, carry<<adjrbshift, 0)
-			vint[k-1], c2 = math_bits.Add(vint[k-1], bitsb[i]>>adjrbshift<<adjrbshift, 0)
-			carry = c1 + c2
-			vint[k-1] = onleft | vint[k-1]>>adjrbshift
 			k--
+			// In case word is round to wszie
+			// no need to add next partial word.
+			if rbshift == 0 {
+				break
+			}
+			onleft := vint[k] >> rbshift << rbshift
+			vint[k], c1 = math_bits.Add(vint[k]<<adjrbshift, carry<<adjrbshift, 0)
+			vint[k], c2 = math_bits.Add(vint[k], bitsb[i]>>adjrbshift<<adjrbshift, 0)
+			carry = c1 + c2
+			vint[k] = onleft | vint[k]>>adjrbshift
 		}
 	}
 	if carry > 0 {
@@ -261,12 +263,10 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 			onright := vint[k] << adjrbshift >> adjrbshift
 			vint[k], borrow = math_bits.Sub(vint[k]>>rbshift, bitsb[i]<<rbshift>>rbshift, borrow)
 			vint[k] = vint[k]<<rbshift | onright
-			//
-			onleft := vint[k-1] >> adjlbshift << adjlbshift
-			vint[k-1], borrow = math_bits.Sub(vint[k-1]<<lbshift>>lbshift, bitsb[i]>>adjrbshift, borrow)
-			vint[k-1] = onleft | vint[k-1]<<lbshift>>lbshift
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			onleft := vint[k] >> adjlbshift << adjlbshift
+			vint[k], borrow = math_bits.Sub(vint[k]<<lbshift>>lbshift, bitsb[i]>>adjrbshift, borrow)
+			vint[k] = onleft | vint[k]<<lbshift>>lbshift
 		// By default, for any word low != high shift both parts of the word
 		// all the way to the right, preserving original right bits separately,
 		// substitute both borrow flag and right shifted provided bits,
@@ -275,10 +275,15 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 			onright := vint[k] << adjrbshift >> adjrbshift
 			vint[k], borrow = math_bits.Sub(vint[k]>>rbshift, bitsb[i]<<rbshift>>rbshift, borrow)
 			vint[k] = vint[k]<<rbshift | onright
-			onleft := vint[k-1] >> rbshift << rbshift
-			vint[k-1], borrow = math_bits.Sub(vint[k-1]<<adjrbshift>>adjrbshift, bitsb[i]>>adjrbshift, borrow)
-			vint[k-1] = onleft | vint[k-1]<<adjrbshift>>adjrbshift
 			k--
+			// In case word is round to wszie
+			// no need to sub next partial word.
+			if rbshift == 0 {
+				break
+			}
+			onleft := vint[k] >> rbshift << rbshift
+			vint[k], borrow = math_bits.Sub(vint[k]<<adjrbshift>>adjrbshift, bitsb[i]>>adjrbshift, borrow)
+			vint[k] = onleft | vint[k]<<adjrbshift>>adjrbshift
 		}
 	}
 	if borrow > 0 {
@@ -324,9 +329,8 @@ func (vint VarInt) Not(i int) error {
 		// Combine inverted right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | ^vint[k]>>rbshift<<rbshift
-			vint[k-1] = vint[k-1]>>adjlbshift<<adjlbshift | ^vint[k-1]<<lbshift>>lbshift
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			vint[k] = vint[k]>>adjlbshift<<adjlbshift | ^vint[k]<<lbshift>>lbshift
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of inverted word.
@@ -379,16 +383,15 @@ func (vint VarInt) And(i int, bits Bits) error {
 		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | (vint[k]>>rbshift<<rbshift)&(bitsb[i]<<rbshift)
-			vint[k-1] = vint[k-1]>>adjlbshift<<adjlbshift | (vint[k-1]<<lbshift>>lbshift)&(bitsb[i]>>adjrbshift)
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			vint[k] = vint[k]>>adjlbshift<<adjlbshift | (vint[k]<<lbshift>>lbshift)&(bitsb[i]>>adjrbshift)
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of current word.
 		default:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | (vint[k]>>rbshift<<rbshift)&(bitsb[i]<<rbshift)
-			vint[k-1] = vint[k-1]>>rbshift<<rbshift | (vint[k-1]<<adjrbshift>>adjrbshift)&(bitsb[i]>>adjrbshift)
 			k--
+			vint[k] = vint[k]>>rbshift<<rbshift | (vint[k]<<adjrbshift>>adjrbshift)&(bitsb[i]>>adjrbshift)
 		}
 	}
 	return nil
@@ -435,16 +438,15 @@ func (vint VarInt) Or(i int, bits Bits) error {
 		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>rbshift<<rbshift | bitsb[i]<<rbshift
-			vint[k-1] = vint[k-1]>>adjlbshift<<adjlbshift | vint[k-1]<<lbshift>>lbshift | bitsb[i]>>adjrbshift
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			vint[k] = vint[k]>>adjlbshift<<adjlbshift | vint[k]<<lbshift>>lbshift | bitsb[i]>>adjrbshift
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of current word.
 		default:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>rbshift<<rbshift | bitsb[i]<<rbshift
-			vint[k-1] = vint[k-1]>>rbshift<<rbshift | vint[k-1]<<adjrbshift>>adjrbshift | bitsb[i]>>adjrbshift
 			k--
+			vint[k] = vint[k]>>rbshift<<rbshift | vint[k]<<adjrbshift>>adjrbshift | bitsb[i]>>adjrbshift
 		}
 	}
 	return nil
@@ -491,16 +493,15 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>rbshift<<rbshift ^ bitsb[i]<<rbshift
-			vint[k-1] = vint[k-1]>>adjlbshift<<adjlbshift | vint[k-1]<<lbshift>>lbshift ^ bitsb[i]>>adjrbshift
-			// Advance to mark low word as consumed, result is completed at this point.
 			k--
+			vint[k] = vint[k]>>adjlbshift<<adjlbshift | vint[k]<<lbshift>>lbshift ^ bitsb[i]>>adjrbshift
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of current word.
 		default:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>rbshift<<rbshift ^ bitsb[i]<<rbshift
-			vint[k-1] = vint[k-1]>>rbshift<<rbshift | vint[k-1]<<adjrbshift>>adjrbshift ^ bitsb[i]>>adjrbshift
 			k--
+			vint[k] = vint[k]>>rbshift<<rbshift | vint[k]<<adjrbshift>>adjrbshift ^ bitsb[i]>>adjrbshift
 		}
 	}
 	return nil
@@ -572,6 +573,77 @@ loop:
 			fallthrough
 		default:
 			vint[knw+1] = vint[knw+1] | v2
+		}
+	}
+	return nil
+}
+
+func (vint VarInt) Lsh(i, n int) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
+	low, hiw, nw := bfrom/wsize, bto/wsize, n/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift, nbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto, n%wsize
+	adjlbshift, adjrbshift, adjnbshift := wsize-lbshift, wsize-rbshift, wsize-nbshift
+	// Iterate from low to high word and
+	// shift and override the combined words.
+loop:
+	for k := low; k <= hiw; k++ {
+		// First get current shifted word position and
+		// original copy of the current word.
+		knw, val := k-nw, vint[k]
+		// Second consume and clear current word bits and
+		// fix copy of the current word if it's low word.
+		switch {
+		case k == hiw && k == low:
+			vint[k] = vint[k]<<adjrbshift>>adjrbshift | vint[k]>>adjlbshift<<adjlbshift
+			val = val >> rbshift << rbshift
+		case k == hiw:
+			vint[k] = vint[k] << adjrbshift >> adjrbshift
+			val = val >> rbshift << rbshift
+		case k == low:
+			vint[k] = vint[k] >> adjlbshift << adjlbshift
+		default:
+			vint[k] = 0
+		}
+		// Then split the current word into two parts
+		// accordingly to provided and adjunctive shifts.
+		v1, v2 := val<<nbshift, val>>adjnbshift
+		// For main part, based on the operated index, either:
+		// - skip the shift, if out of range
+		// - apply partial word respecting high word boundary
+		// - apply full shifted word
+		switch {
+		case knw < low:
+			continue loop
+		case knw == low:
+			v1 = v1 << lbshift >> lbshift
+			fallthrough
+		default:
+			vint[knw] = vint[knw] | v1
+		}
+		// For carryover part, based on the operated index, either:
+		// - skip the shift, if out of range
+		// - apply partial word respecting high word boundary
+		// - apply full shifted word
+		switch {
+		case knw-1 < low:
+			continue loop
+		case knw-1 == low:
+			v2 = v2 << lbshift >> lbshift
+			fallthrough
+		default:
+			vint[knw-1] = vint[knw-1] | v2
 		}
 	}
 	return nil

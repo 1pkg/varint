@@ -24,9 +24,12 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 	}
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
-	words, bsizemod := bsize/wsize, bsize%wsize
-	if bsizemod > 0 {
+	words, bdelta := bsize/wsize, bsize%wsize
+	if bdelta > 0 {
 		words++
+		// If delta is not zero convert it to
+		// shift number to truncate original bits.
+		bdelta = wsize - bdelta
 	}
 	switch {
 	// Special marker, use a guess min bits size.
@@ -35,8 +38,7 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 	// Truncate original bits to provided size.
 	case bsize < minbsize:
 		bits = bits[:words]
-		shift := wsize - bsizemod
-		bits[words-1] = bits[words-1] << shift >> shift
+		bits[words-1] = bits[words-1] << bdelta >> bdelta
 	}
 	b := make([]uint, words+1)
 	b[0] = uint(bsize)
