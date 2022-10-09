@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	math_bits "math/bits"
+	"math/rand"
 )
 
 // TODO for format, parse and base operations for now just reuse big.Int for simplicitly
@@ -46,8 +47,8 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 	return b, nil
 }
 
-func NewBitsUint(bsize int, n uint) (Bits, error) {
-	return NewBits(bsize, []uint{n})
+func NewBitsUint(n uint) (Bits, error) {
+	return NewBits(wsize, []uint{n})
 }
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
@@ -69,6 +70,24 @@ func NewBitsString(s string, base int) (Bits, error) {
 		return nil, ErrorStringIsNotValidBaseNumber{String: s, Base: base}
 	}
 	return NewBitsBigInt(i)
+}
+
+func NewBitsRand(bsize int, rnd *rand.Rand) (Bits, error) {
+	if bsize == 0 {
+		return []uint{0}, nil
+	}
+	// Calculate number of whole words plus
+	// one word if partial mod word is needed.
+	words, bdelta := bsize/wsize, bsize%wsize
+	if bdelta > 0 {
+		words++
+	}
+	// Generate enough random bits.
+	bits := make([]uint, 0, words)
+	for i := 0; i < words; i++ {
+		bits = append(bits, uint(rnd.Int()))
+	}
+	return NewBits(bsize, bits)
 }
 
 func (bits Bits) Equal(b Bits) bool {

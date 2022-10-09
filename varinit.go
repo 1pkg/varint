@@ -63,7 +63,7 @@ func (vint VarInt) Get(i int, bits Bits) error {
 		// In case the sum is greater than word size, this means no extra result word is needed.
 		// Accumulate right shifted prev high word with left shifted and adjusted bits of low word.
 		case k-1 == low && wsize <= fullshift:
-			bits[i] = (vint[k-1] << lbshift >> (lbshift - adjrbshift)) | (vint[k] >> rbshift)
+			bits[i] = vint[k-1]<<lbshift>>(lbshift-adjrbshift) | vint[k]>>rbshift
 			// Advance to mark low word as consumed, result is completed at this point.
 			k--
 		// By default, for any word low != high accumulate next full combined word
@@ -126,6 +126,67 @@ func (vint VarInt) Set(i int, bits Bits) error {
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
 			k--
 			vint[k] = vint[k]>>rbshift<<rbshift | bitsb[i]>>adjrbshift
+		}
+	}
+	return nil
+}
+
+func (vint VarInt) Swap(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
+	low, hiw := bfrom/wsize, bto/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
+	// Calculate word size adjunctive left and right shifts.
+	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
+	// Iterate over bits and from high to low word and
+	// swap the combined wordd in vint with provided bits.
+	for k, i := hiw, 0; i < len(bitsb); i++ {
+		switch {
+		// Special case, the point where low == high word is reached
+		// this means that original word bits from vint need to be
+		// respected, so clear the place for provided bits in original word.
+		case k == low:
+			bk := vint[k] << lbshift >> fullshift
+			b, vbr, vbl := bitsb[i]<<rbshift,
+				vint[k]<<adjrbshift>>adjrbshift,
+				vint[k]>>adjlbshift<<adjlbshift
+			vint[k] = vbl | b | vbr
+			bitsb[i] = bk
+		// Special case, the point where low+1 == hight word is reached
+		// and leftover low word bits is enough to fit last bits provided word size.
+		// This can be deduced from sum of left bit shift plus right bit shift.
+		// In case the sum is greater than word size, this means left shifting is needed to be used.
+		// Combine right shifted prev high word with left shifted and adjusted bits of low word.
+		case k-1 == low && wsize <= fullshift:
+			bk := vint[k-1]<<lbshift>>(lbshift-adjrbshift) | vint[k]>>rbshift
+			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
+			k--
+			vint[k] = vint[k]>>adjlbshift<<adjlbshift | bitsb[i]>>adjrbshift
+			bitsb[i] = bk
+		// By default, for any word low != high override word from provided bits
+		// by clearing vint right parts of the current and the next word and combining them
+		// with right shifted parts of word from bits.
+		default:
+			bk := vint[k-1]<<adjrbshift | vint[k]>>rbshift
+			vint[k] = vint[k]<<adjrbshift>>adjrbshift | bitsb[i]<<rbshift
+			k--
+			vint[k] = vint[k]>>rbshift<<rbshift | bitsb[i]>>adjrbshift
+			bitsb[i] = bk
 		}
 	}
 	return nil
