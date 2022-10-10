@@ -131,7 +131,7 @@ func (vint VarInt) Set(i int, bits Bits) error {
 	return nil
 }
 
-func (vint VarInt) Swap(i int, bits Bits) error {
+func (vint VarInt) GetSet(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative{Index: i}
@@ -190,6 +190,64 @@ func (vint VarInt) Swap(i int, bits Bits) error {
 		}
 	}
 	return nil
+}
+
+func (vint VarInt) Cmp(i int, bits Bits) (int, error) {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return 0, ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	bsize, lenght := vint.Length()
+	if i >= lenght {
+		return 0, ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	}
+	if bzisex := bits.Bits(); bzisex != bsize {
+		return 0, ErrorUnequalBitsCardinality{Bits: bsize, BitsX: bzisex}
+	}
+	bitsb := bits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := bsize*i+wsize*rcap, bsize*(i+1)-1+wsize*rcap
+	low, hiw := bfrom/wsize, bto/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
+	// Calculate word size adjunctive left and right shifts.
+	adjrbshift, fullshift := wsize-rbshift, lbshift+rbshift
+	// Iterate over bits and from high to low word and
+	// swap the combined wordd in vint with provided bits.
+	for k, i := low, len(bitsb)-1; i >= 0; i-- {
+		var bk, b uint
+		switch {
+		// Special case, the point where low == high word is reached
+		// this means that original word bits from vint need to be
+		// respected, so clear the place for provided bits in original word.
+		case k == low:
+			// Special case, the point where low == hight word is reached
+			// and leftover low word bits is enough to fit last bits provided word size.
+			// This can be deduced from sum of left bit shift plus right bit shift.
+			// In case the sum is greater than word size, this means left shifting is needed to be used.
+			// Combine right shifted prev high word with left shifted and adjusted bits of low word.
+			if wsize <= fullshift {
+				bk, b = vint[k]<<lbshift>>(lbshift-adjrbshift)|vint[k+1]>>rbshift, bitsb[i]
+			} else {
+				bk, b = vint[k]<<lbshift>>fullshift, bitsb[i]
+			}
+		// By default, for any word low != high override word from provided bits
+		// by clearing vint right parts of the current and the next word and combining them
+		// with right shifted parts of word from bits.
+		default:
+			bk, b = vint[k+1]<<adjrbshift|vint[k]>>rbshift, bitsb[i]
+		}
+		switch {
+		case b > bk:
+			return -1, nil
+		case b < bk:
+			return 1, nil
+		}
+		k--
+	}
+	return 0, nil
 }
 
 func (vint VarInt) Add(i int, bits Bits) error {
@@ -708,4 +766,13 @@ loop:
 		}
 	}
 	return nil
+}
+
+func (vint VarInt) Sortable() Sortable {
+	b, _ := vint.Length()
+	bits, err := NewBits(b, nil)
+	if err != nil {
+		panic(err)
+	}
+	return Sortable{vint: vint, bits: bits}
 }

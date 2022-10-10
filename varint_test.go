@@ -1,9 +1,11 @@
 package varint
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 )
@@ -39,6 +41,18 @@ func (t thelper) NewVarInt(bits, length int) VarInt {
 
 func (t thelper) NewBits(bsize int, bits []uint) Bits {
 	b, err := NewBits(bsize, bits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func (t thelper) NewBitsZero(bsize int) Bits {
+	return t.NewBits(bsize, []uint{0x0})
+}
+
+func (t thelper) NewBitsUint(n uint) Bits {
+	b, err := NewBitsUint(n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +134,7 @@ func BenchmarkAddGetVarIntvsSlice(b *testing.B) {
 	})
 }
 
-func FuzzVarIntGetSet(f *testing.F) {
+func FuzzVarIntSetAndGet(f *testing.F) {
 	const l = 10
 	for _, b62 := range b62Seed {
 		f.Add(b62)
@@ -145,14 +159,49 @@ func FuzzVarIntGetSet(f *testing.F) {
 				t.Fatalf("get error %v is not expected on %v", err, bits)
 			}
 			// Equals to bits or zero.
-			if zero := tt.NewBits(b.Bits(), []uint{0x0}); !(b.Equal(zero) || b.Equal(bits)) {
+			if zero := tt.NewBitsZero(b.Bits()); !(b.Equal(zero) || b.Equal(bits)) {
 				t.Fatalf("expected result %v doesn't match actual result %v", bits, b)
 			}
 		}
 	})
 }
 
-func FuzzVarIntSwap(f *testing.F) {
+func FuzzVarIntGetSet(f *testing.F) {
+	const l = 3
+	for _, b62 := range b62Seed {
+		f.Add(b62)
+	}
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	f.Fuzz(func(t *testing.T, b62 string) {
+		tt := thelper{t}
+		// Initialize fuzz original bits and extra random bits
+		// in the range of [1, bits]. Swap original bits and
+		// random bits two times so result should be the same.
+		bits := tt.NewBitsB62(b62)
+		bitsRnd := tt.NewBitsRand(bits.Bits(), rnd)
+		vint := tt.NewVarInt(bits.Bits(), l)
+		// First, set original bits and and random bits.
+		tt.VarIntSet(vint, 1, bits)
+		tt.VarIntSet(vint, 2, bits)
+		tt.VarIntSet(vint, 0, bits)
+		// Then swap origin and rand bits two times.
+		if err := vint.GetSet(1, bitsRnd); err != nil {
+			t.Fatalf("getset error %v is not expected on %v with %v", err, bits, bitsRnd)
+		}
+		if err := vint.GetSet(1, bitsRnd); err != nil {
+			t.Fatalf("getset error %v is not expected on %v with %v", err, bits, bitsRnd)
+		}
+		b := tt.VarIntGet(vint, 1)
+		if !b.Equal(bits) {
+			t.Fatalf("expected result %v doesn't match actual result %v", bits, b)
+		}
+		// Second, check that others bits were not affected.
+		tt.VarIntEqual(vint, 0, bits)
+		tt.VarIntEqual(vint, 2, bits)
+	})
+}
+
+func FuzzVarIntCmp(f *testing.F) {
 	const l = 3
 	for _, b62 := range b62Seed {
 		f.Add(b62)
@@ -162,25 +211,25 @@ func FuzzVarIntSwap(f *testing.F) {
 		tt := thelper{t}
 		// Initialize fuzz original bits and extra random bits
 		// in the range of [1, bits]. Then bootstrap big ints
-		// from them, calculate bit ints bit and and compare to
-		// calculated bit and of original - random bits.
+		// from them, result of ints comparison should match
+		// vint comparison result.
 		bits := tt.NewBitsB62(b62)
 		bitsRnd := tt.NewBitsRand(bits.Bits(), rnd)
+		bigOrig, bigRnd := bits.BigInt(), bitsRnd.BigInt()
+		cmp := bigOrig.Cmp(bigRnd)
 		vint := tt.NewVarInt(bits.Bits(), l)
 		// First, set original bits and and random bits.
 		tt.VarIntSet(vint, 1, bits)
 		tt.VarIntSet(vint, 2, bits)
 		tt.VarIntSet(vint, 0, bits)
-		// Then swap origin and rand bits two times.
-		if err := vint.Swap(1, bitsRnd); err != nil {
-			t.Fatalf("swap error %v is not expected on %v with %v", err, bits, bitsRnd)
+		// Then compare origin and rand bits.
+		vcmp, err := vint.Cmp(1, bitsRnd)
+		if err != nil {
+			t.Fatalf("cmp error %v is not expected on %v with %v", err, bits, bitsRnd)
 		}
-		if err := vint.Swap(1, bitsRnd); err != nil {
-			t.Fatalf("swap error %v is not expected on %v with %v", err, bits, bitsRnd)
-		}
-		b := tt.VarIntGet(vint, 1)
-		if !b.Equal(bits) {
-			t.Fatalf("expected result %v doesn't match actual result %v", bits, b)
+		if cmp != vcmp {
+			fmt.Println(bits, bitsRnd)
+			t.Fatalf("expected result %v doesn't match actual result %v", cmp, vcmp)
 		}
 		// Second, check that others bits were not affected.
 		tt.VarIntEqual(vint, 0, bits)
@@ -498,4 +547,13 @@ func FuzzVarIntLsh(f *testing.F) {
 		tt.VarIntEqual(vint, 0, bits)
 		tt.VarIntEqual(vint, 2, bits)
 	})
+}
+
+func BenchmarkVarIntSort(b *testing.B) {
+	vint, _ := NewVarInt(64, 100)
+	for i := 100; i > 0; i-- {
+		bits, _ := NewBitsUint(uint(i))
+		_ = vint.Set(100-i, bits)
+	}
+	sort.Sort(vint.Sortable())
 }
