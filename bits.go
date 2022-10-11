@@ -18,11 +18,6 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 	if bsize == 0 {
 		return []uint{0}, nil
 	}
-	// Calculate min bits size to hold provided bits slice.
-	minbsize := 0
-	if lb := len(bits) - 1; lb > -1 {
-		minbsize = wsize*(lb) + math_bits.Len(uint(bits[lb]))
-	}
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
 	words, bdelta := bsize/wsize, bsize%wsize
@@ -32,12 +27,17 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 		// shift number to truncate original bits.
 		bdelta = wsize - bdelta
 	}
+	// Calculate min bits size to hold provided bits slice.
+	var minblen int
+	if lb := len(bits) - 1; lb > -1 {
+		minblen = wsize*(lb) + math_bits.Len(uint(bits[lb]))
+	}
 	switch {
 	// Special marker, use a guess min bits size.
 	case bsize < 0:
-		bsize = minbsize
+		bsize = minblen
 	// Truncate original bits to provided size.
-	case bsize < minbsize:
+	case bsize < minblen:
 		bits = bits[:words]
 		bits[words-1] = bits[words-1] << bdelta >> bdelta
 	}
@@ -48,7 +48,14 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 }
 
 func NewBitsUint(n uint) (Bits, error) {
-	return NewBits(wsize, []uint{n})
+	return NewBits(-1, []uint{n})
+}
+
+func NewBitsInt(n int) (Bits, error) {
+	if n < 0 {
+		n = 0
+	}
+	return NewBits(-1, []uint{uint(n)})
 }
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
@@ -90,23 +97,7 @@ func NewBitsRand(bsize int, rnd *rand.Rand) (Bits, error) {
 	return NewBits(bsize, bits)
 }
 
-func (bits Bits) Equal(b Bits) bool {
-	if bits.Bits() != b.Bits() {
-		return false
-	}
-	bitsb, bb := bits.Bytes(), b.Bytes()
-	if len(bitsb) != len(bb) {
-		return false
-	}
-	for i := 0; i < len(bitsb); i++ {
-		if bitsb[i] != bb[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (bits Bits) Bits() int {
+func (bits Bits) BitLen() int {
 	return int(bits[0])
 }
 
@@ -115,14 +106,27 @@ func (bits Bits) Bytes() []uint {
 }
 
 func (bits Bits) Uint() (uint, error) {
-	b := bits.Bits()
-	if b == 0 {
+	b := bits.BitLen()
+	switch {
+	case b == 0:
 		return 0, nil
-	}
-	if b > wsize {
+	case b > wsize:
 		return 0, ErrorBitsUintOveflow{Bits: b}
+	default:
+		return bits[1], nil
 	}
-	return bits[1], nil
+}
+
+func (bits Bits) Int() (int, error) {
+	b := bits.BitLen()
+	switch {
+	case b == 0:
+		return 0, nil
+	case b > wsize:
+		return 0, ErrorBitsUintOveflow{Bits: b}
+	default:
+		return int(bits[1]), nil
+	}
 }
 
 func (bits Bits) BigInt() *big.Int {
@@ -138,7 +142,7 @@ func (bits Bits) BigInt() *big.Int {
 
 func (bits Bits) Format(f fmt.State, verb rune) {
 	if verb == 'v' {
-		fmt.Fprintf(f, "[%d]{%X}", bits.Bits(), bits)
+		fmt.Fprintf(f, "[%d]{%X}", bits.BitLen(), bits)
 		return
 	}
 	bits.BigInt().Format(f, verb)

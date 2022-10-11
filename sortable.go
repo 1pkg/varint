@@ -6,8 +6,7 @@ type Sortable struct {
 }
 
 func (s Sortable) Len() int {
-	_, l := s.vint.Length()
-	return l
+	return s.vint.Len()
 }
 
 func (s Sortable) Less(i, j int) bool {
