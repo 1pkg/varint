@@ -2,36 +2,36 @@ package varint
 
 import "fmt"
 
-type ErrorBitsIsNegative struct {
-	Bits int
+type ErrorBitLengthIsNegative struct {
+	BitLen int
 }
 
-func (err ErrorBitsIsNegative) Error() string {
-	return fmt.Sprintf("bits should be strictly positive number, but got %d", err.Bits)
+func (err ErrorBitLengthIsNegative) Error() string {
+	return fmt.Sprintf("bit length should be strictly positive number, but got %d", err.BitLen)
 }
 
 type ErrorLengthIsNegative struct {
-	Length int
+	Len int
 }
 
 func (err ErrorLengthIsNegative) Error() string {
-	return fmt.Sprintf("lenght should be strictly positive number, but got %d", err.Length)
+	return fmt.Sprintf("length should be strictly positive number, but got %d", err.Len)
 }
 
-type ErrorBitsUintOveflow struct {
-	Bits int
+type ErrorBitLengthUintOveflow struct {
+	BitLen int
 }
 
-func (err ErrorBitsUintOveflow) Error() string {
-	return fmt.Sprintf("bits %d overflows max size of uint %d", err.Bits, wsize)
+func (err ErrorBitLengthUintOveflow) Error() string {
+	return fmt.Sprintf("bit length %d overflows max size of uint %d", err.BitLen, wsize)
 }
 
-type ErrorBitsBaseOveflow struct {
+type ErrorBaseIsOutOfRange struct {
 	Base int
 }
 
-func (err ErrorBitsBaseOveflow) Error() string {
-	return fmt.Sprintf("bits base %d overflows the range [0,62]", err.Base)
+func (err ErrorBaseIsOutOfRange) Error() string {
+	return fmt.Sprintf("base %d is out the range [2,62]", err.Base)
 }
 
 type ErrorIndexIsNegative struct {
@@ -51,36 +51,36 @@ func (err ErrorIndexIsOutOfRange) Error() string {
 	return fmt.Sprintf("index is out of range [%d] with length %d", err.Index, err.Length)
 }
 
-type ErrorUnequalBitsCardinality struct {
-	Bits  int
-	BitsX int
+type ErrorUnequalBitLengthCardinality struct {
+	BitLenLeft  int
+	BitLenRight int
 }
 
-func (err ErrorUnequalBitsCardinality) Error() string {
-	return fmt.Sprintf("bits %d do not have equal cardinality with %d", err.Bits, err.BitsX)
+func (err ErrorUnequalBitLengthCardinality) Error() string {
+	return fmt.Sprintf("bit length %d do not have equal cardinality with %d", err.BitLenLeft, err.BitLenRight)
 }
 
-type ErrorBitsOperationOverflow struct {
-	Bits int
+type ErrorBitLengthOperationOverflow struct {
+	BitLen int
 }
 
-func (err ErrorBitsOperationOverflow) Error() string {
-	return fmt.Sprintf("the operation result on bits %d overflows its max value", err.Bits)
+func (err ErrorBitLengthOperationOverflow) Error() string {
+	return fmt.Sprintf("the operation result on bit length %d overflows its max value", err.BitLen)
 }
 
-type ErrorBitsOperationUnderflow struct {
-	Bits int
+type ErrorBitLengthOperationUnderflow struct {
+	BitLen int
 }
 
-func (err ErrorBitsOperationUnderflow) Error() string {
-	return fmt.Sprintf("the operation result on bits %d underflow its min value", err.Bits)
+func (err ErrorBitLengthOperationUnderflow) Error() string {
+	return fmt.Sprintf("the operation result on bit length %d underflow its min value", err.BitLen)
 }
 
-type ErrorStringIsNotValidBaseNumber struct {
+type ErrorStringIsNotValidNumber struct {
 	String string
 	Base   int
 }
 
-func (err ErrorStringIsNotValidBaseNumber) Error() string {
-	return fmt.Sprintf("string %s is not valid base %d number", err.String, err.Base)
+func (err ErrorStringIsNotValidNumber) Error() string {
+	return fmt.Sprintf("string %s is not valid number with base %d", err.String, err.Base)
 }

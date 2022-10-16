@@ -9,18 +9,34 @@ const (
 
 type VarInt []uint
 
-func NewVarInt(bits, length int) (VarInt, error) {
-	if bits <= 0 {
-		return nil, ErrorBitsIsNegative{Bits: bits}
+func NewVarInt(blen, len int) (VarInt, error) {
+	if blen <= 0 {
+		return nil, ErrorBitLengthIsNegative{BitLen: blen}
 	}
-	if length <= 0 {
-		return nil, ErrorLengthIsNegative{Length: length}
+	if len <= 0 {
+		return nil, ErrorLengthIsNegative{Len: len}
 	}
-	size := (bits*length+wsize-1)/wsize + rcap
-	vint := VarInt(make([]uint, size))
-	vint[0] = uint(length)
-	vint[1] = uint(bits)
+	// Calculate capacity to fit all numbers with
+	// provided bit length and capacity.
+	cap := (blen*len+wsize-1)/wsize + rcap
+	// Calculate number of whole words plus
+	// one word if partial mod word is needed.
+	words := blen/wsize + (blen%wsize+wsize-1)/wsize
+	vint := VarInt(make([]uint, cap+words+1))
+	vint[0] = uint(len)
+	vint[1] = uint(blen)
+	// Allocate protected space at the for
+	// the extra full bits at the back.
+	// This temp variable is useful for operations
+	// that require extra temp buffer like
+	// multiplication, division or sorting.
+	vint[cap] = uint(len)
 	return vint, nil
+}
+
+func (vint VarInt) varbits() Bits {
+	cap := (vint.BitLen()*vint.Len()+wsize-1)/wsize + rcap
+	return Bits(vint[cap:])
 }
 
 func (vint VarInt) Len() int {
@@ -37,12 +53,12 @@ func (vint VarInt) Get(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
@@ -86,12 +102,12 @@ func (vint VarInt) Set(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -141,12 +157,12 @@ func (vint VarInt) GetSet(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -202,12 +218,12 @@ func (vint VarInt) Cmp(i int, bits Bits) (int, error) {
 		return 0, ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return 0, ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return 0, ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return 0, ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return 0, ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -261,12 +277,12 @@ func (vint VarInt) Add(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -335,7 +351,7 @@ func (vint VarInt) Add(i int, bits Bits) error {
 		}
 	}
 	if carry > 0 {
-		return ErrorBitsOperationOverflow{Bits: blen}
+		return ErrorBitLengthOperationOverflow{BitLen: blen}
 	}
 	return nil
 }
@@ -346,12 +362,12 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -411,7 +427,7 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		}
 	}
 	if borrow > 0 {
-		return ErrorBitsOperationUnderflow{Bits: blen}
+		return ErrorBitLengthOperationUnderflow{BitLen: blen}
 	}
 	return nil
 }
@@ -422,8 +438,8 @@ func (vint VarInt) Not(i int) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	// Calculate starting and ending bit with
@@ -472,12 +488,12 @@ func (vint VarInt) And(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -527,12 +543,12 @@ func (vint VarInt) Or(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -582,12 +598,12 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	if blenx := bits.BitLen(); blenx != blen {
-		return ErrorUnequalBitsCardinality{Bits: blen, BitsX: blenx}
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
@@ -637,8 +653,8 @@ func (vint VarInt) Rsh(i, n int) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	// Calculate starting and ending bit with
@@ -708,8 +724,8 @@ func (vint VarInt) Lsh(i, n int) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if lenght := vint.Len(); i >= lenght {
-		return ErrorIndexIsOutOfRange{Index: i, Length: lenght}
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := vint.BitLen()
 	// Calculate starting and ending bit with
@@ -771,9 +787,4 @@ loop:
 		}
 	}
 	return nil
-}
-
-func (vint VarInt) Sortable() Sortable {
-	bits, _ := NewBits(vint.BitLen(), nil)
-	return Sortable{vint: vint, bits: bits}
 }

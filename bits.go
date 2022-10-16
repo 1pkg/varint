@@ -14,13 +14,13 @@ const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 type Bits []uint
 
-func NewBits(bsize int, bits []uint) (Bits, error) {
-	if bsize == 0 {
+func NewBits(blen int, bits []uint) (Bits, error) {
+	if blen == 0 {
 		return []uint{0}, nil
 	}
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
-	words, bdelta := bsize/wsize, bsize%wsize
+	words, bdelta := blen/wsize, blen%wsize
 	if bdelta > 0 {
 		words++
 		// If delta is not zero convert it to
@@ -34,28 +34,25 @@ func NewBits(bsize int, bits []uint) (Bits, error) {
 	}
 	switch {
 	// Special marker, use a guess min bits size.
-	case bsize < 0:
-		bsize = minblen
+	case blen < 0:
+		blen = minblen
 	// Truncate original bits to provided size.
-	case bsize < minblen:
+	case blen < minblen:
 		bits = bits[:words]
 		bits[words-1] = bits[words-1] << bdelta >> bdelta
 	}
 	b := make([]uint, words+1)
-	b[0] = uint(bsize)
+	b[0] = uint(blen)
 	copy(b[1:], bits)
 	return b, nil
 }
 
 func NewBitsUint(n uint) (Bits, error) {
-	return NewBits(-1, []uint{n})
+	return NewBits(wsize, []uint{n})
 }
 
 func NewBitsInt(n int) (Bits, error) {
-	if n < 0 {
-		n = 0
-	}
-	return NewBits(-1, []uint{uint(n)})
+	return NewBits(wsize, []uint{uint(n)})
 }
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
@@ -69,32 +66,26 @@ func NewBitsBigInt(i *big.Int) (Bits, error) {
 
 func NewBitsString(s string, base int) (Bits, error) {
 	if base < 2 || base > 62 {
-		return nil, ErrorBitsBaseOveflow{Base: base}
+		return nil, ErrorBaseIsOutOfRange{Base: base}
 	}
 	i := new(big.Int)
 	_, ok := i.SetString(s, base)
 	if !ok {
-		return nil, ErrorStringIsNotValidBaseNumber{String: s, Base: base}
+		return nil, ErrorStringIsNotValidNumber{String: s, Base: base}
 	}
 	return NewBitsBigInt(i)
 }
 
-func NewBitsRand(bsize int, rnd *rand.Rand) (Bits, error) {
-	if bsize == 0 {
-		return []uint{0}, nil
-	}
+func NewBitsRand(blen int, rnd *rand.Rand) (Bits, error) {
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
-	words, bdelta := bsize/wsize, bsize%wsize
-	if bdelta > 0 {
-		words++
-	}
+	words := blen/wsize + (blen%wsize+wsize-1)/wsize
 	// Generate enough random bits.
 	bits := make([]uint, 0, words)
 	for i := 0; i < words; i++ {
 		bits = append(bits, uint(rnd.Int()))
 	}
-	return NewBits(bsize, bits)
+	return NewBits(blen, bits)
 }
 
 func (bits Bits) BitLen() int {
@@ -106,24 +97,24 @@ func (bits Bits) Bytes() []uint {
 }
 
 func (bits Bits) Uint() (uint, error) {
-	b := bits.BitLen()
+	blen := bits.BitLen()
 	switch {
-	case b == 0:
+	case blen == 0:
 		return 0, nil
-	case b > wsize:
-		return 0, ErrorBitsUintOveflow{Bits: b}
+	case blen > wsize:
+		return 0, ErrorBitLengthUintOveflow{BitLen: blen}
 	default:
 		return bits[1], nil
 	}
 }
 
 func (bits Bits) Int() (int, error) {
-	b := bits.BitLen()
+	blen := bits.BitLen()
 	switch {
-	case b == 0:
+	case blen == 0:
 		return 0, nil
-	case b > wsize:
-		return 0, ErrorBitsUintOveflow{Bits: b}
+	case blen > wsize:
+		return 0, ErrorBitLengthUintOveflow{BitLen: blen}
 	default:
 		return int(bits[1]), nil
 	}
@@ -154,7 +145,7 @@ func (bits Bits) String() string {
 
 func (bits Bits) Base(base int) ([]byte, error) {
 	if base < 2 || base > 62 {
-		return nil, ErrorBitsBaseOveflow{Base: base}
+		return nil, ErrorBaseIsOutOfRange{Base: base}
 	}
 	var r []byte
 	i, b, m := bits.BigInt(), big.NewInt(int64(base)), new(big.Int)
