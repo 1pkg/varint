@@ -30,13 +30,18 @@ func NewVarInt(blen, len int) (VarInt, error) {
 	// This temp variable is useful for operations
 	// that require extra temp buffer like
 	// multiplication, division or sorting.
-	vint[cap] = uint(len)
+	vint[cap] = uint(blen)
 	return vint, nil
 }
 
 func (vint VarInt) varbits() Bits {
 	cap := (vint.BitLen()*vint.Len()+wsize-1)/wsize + rcap
-	return Bits(vint[cap:])
+	// Clear var bits state from prev manipulations.
+	b := Bits(vint[cap:])
+	for i := 1; i < len(vint)-cap; i++ {
+		b[i] = 0
+	}
+	return b
 }
 
 func (vint VarInt) Len() int {
@@ -428,6 +433,91 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 	}
 	if borrow > 0 {
 		return ErrorBitLengthOperationUnderflow{BitLen: blen}
+	}
+	return nil
+}
+
+func (vint VarInt) Mul(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
+	}
+	blen := vint.BitLen()
+	if blenx := bits.BitLen(); blenx != blen {
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
+	}
+	varbits := vint.varbits()
+	bitsb, varbitsb := bits.Bytes(), varbits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	low, hiw := bfrom/wsize, bto/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
+	// Calculate word size adjunctive left and right shifts.
+	adjrbshift, fullshift := wsize-rbshift, lbshift+rbshift
+	// Iterate over bits and from high to low word and
+	// multiply and combine the word of vint into tmp bits variable.
+	var carry uint
+	var overflow bool
+	for i, maxl := 0, len(bitsb); i < maxl; i++ {
+		b := bitsb[i]
+		// Iterate from high to low word and
+		// accumulate the combined words.
+		for j, k := 0, hiw; k >= low; k-- {
+			// If out of temp bits buffer is riched,
+			// set carry flag and jump to next iteration.
+			w := i + j
+			if w >= maxl {
+				overflow = b != 0
+				continue
+			}
+			var bk uint
+			switch {
+			// Special case, the point where low == high word is reached
+			// this means that extra word is needed to fit the last part
+			// of low word. Combine it by shifting all excess bits on both
+			// left side and ride side of low word.
+			case k == low:
+				bk = vint[k] << lbshift >> fullshift
+			// Special case, the point where low+1 == hight word is reached
+			// and leftover low word bits will fit into last result word size.
+			// This can be deduced from sum of left bit shift plus right bit shift.
+			// In case the sum is greater than word size, this means no extra result word is needed.
+			// Accumulate right shifted prev high word with left shifted and adjusted bits of low word.
+			case k-1 == low && wsize <= fullshift:
+				bk = vint[k-1]<<lbshift>>(lbshift-adjrbshift) | vint[k]>>rbshift
+				// Advance to mark low word as consumed, result is completed at this point.
+				k--
+			// By default, for any word low != high accumulate next full combined word
+			// by shifting the current and the next word parts to the right.
+			default:
+				bk = vint[k-1]<<adjrbshift | vint[k]>>rbshift
+			}
+			var c1, c2 uint
+			hi, lo := math_bits.Mul(bk, b)
+			lo, c1 = math_bits.Add(lo, carry, 0)
+			lo, c2 = math_bits.Add(lo, varbitsb[w], 0)
+			varbitsb[w] = lo
+			carry = hi + c1 + c2
+			j++
+		}
+		if carry > 0 {
+			overflow = true
+			carry = 0
+		}
+	}
+	// After multiplication is done set bits var
+	// back to i-th number and check for any error.
+	if err := vint.Set(i, varbits); err != nil {
+		return err
+	}
+	if overflow {
+		return ErrorBitLengthOperationOverflow{BitLen: blen}
 	}
 	return nil
 }

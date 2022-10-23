@@ -20,13 +20,9 @@ func NewBits(blen int, bits []uint) (Bits, error) {
 	}
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
-	words, bdelta := blen/wsize, blen%wsize
-	if bdelta > 0 {
-		words++
-		// If delta is not zero convert it to
-		// shift number to truncate original bits.
-		bdelta = wsize - bdelta
-	}
+	// Calculate delta shift is not zero convert it to
+	// shift number to truncate original bits.
+	words, bdelta := blen/wsize+(blen%wsize+wsize-1)/wsize, wsize-blen%wsize
 	// Calculate min bits size to hold provided bits slice.
 	var minblen int
 	if lb := len(bits) - 1; lb > -1 {
@@ -39,7 +35,11 @@ func NewBits(blen int, bits []uint) (Bits, error) {
 	// Truncate original bits to provided size.
 	case blen < minblen:
 		bits = bits[:words]
-		bits[words-1] = bits[words-1] << bdelta >> bdelta
+		// If delta shift is equal to word,
+		// there is nothing to shift.
+		if bdelta != wsize {
+			bits[words-1] = bits[words-1] << bdelta >> bdelta
+		}
 	}
 	b := make([]uint, words+1)
 	b[0] = uint(blen)

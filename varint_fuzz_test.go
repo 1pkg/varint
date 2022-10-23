@@ -152,6 +152,39 @@ func FuzzVarIntSub(f *testing.F) {
 	})
 }
 
+func FuzzVarIntMul(f *testing.F) {
+	const l = 3
+	seedfuzz(f)
+	f.Fuzz(func(t *testing.T, b62 string) {
+		tt := newtt(t)
+		// Initialize fuzz original bits and extra random bits
+		// in the range of [0, bits]. Then bootstrap big ints
+		// from them, calculate bit ints sum and compare to
+		// calculated sum of original + random bits.
+		borig := tt.NewBitsB62(b62)
+		brnd := tt.NewBitsRand(borig.BitLen())
+		bmul := tt.NewBitsBigInt(big.NewInt(1).Mul(borig.BigInt(), brnd.BigInt()))
+		borig, brnd, bmul =
+			tt.NewBits(borig.BitLen()*2, borig.Bytes()),
+			tt.NewBits(borig.BitLen()*2, brnd.Bytes()),
+			tt.NewBits(borig.BitLen()*2, bmul.Bytes())
+		vint := tt.NewVarInt(borig.BitLen(), l)
+		tt.VarIntSet(0, borig)
+		tt.VarIntSet(2, borig)
+		// First, add original bits to zeroed vint.
+		tt.NoError(vint.Add(1, borig))
+		tt.VarIntEqual(1, borig)
+		// Second, add random bits to the same vint.
+		// Allow overflow error, but don't check bit equality then.
+		if !tt.NoError(vint.Mul(1, brnd), ErrorBitLengthOperationOverflow{BitLen: borig.BitLen()}) {
+			tt.VarIntEqual(1, bmul)
+		}
+		// Third, check that others bits were not affected.
+		tt.VarIntEqual(0, borig)
+		tt.VarIntEqual(2, borig)
+	})
+}
+
 func FuzzVarIntNot(f *testing.F) {
 	const l = 3
 	seedfuzz(f)
