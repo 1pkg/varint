@@ -84,3 +84,10 @@ type ErrorStringIsNotValidNumber struct {
 func (err ErrorStringIsNotValidNumber) Error() string {
 	return fmt.Sprintf("string %s is not valid number with base %d", err.String, err.Base)
 }
+
+type ErrorReaderIsNotDecodable struct {
+}
+
+func (err ErrorReaderIsNotDecodable) Error() string {
+	return "reader does not contain decodable bytes"
+}
