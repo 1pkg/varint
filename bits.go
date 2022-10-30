@@ -7,7 +7,7 @@ import (
 	"math/rand"
 )
 
-// TODO for format, parse and base operations for now just reuse big.Int for simplicitly
+// TODO for format, parse and base operations for now just reuse big.Int for simplicity
 // untimetely after native mod-div is implemented use that instead.
 
 const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

@@ -76,12 +76,12 @@ func (err ErrorMultiplicationOverflow) Error() string {
 	return fmt.Sprintf("the multiplication result on bit length %d overflows its max value", err.BitLen)
 }
 
-type ErrorSubstitutionUnderflow struct {
+type ErrorSubtractionUnderflow struct {
 	BitLen int
 }
 
-func (err ErrorSubstitutionUnderflow) Error() string {
-	return fmt.Sprintf("the substitution result on bit length %d underflow its min value", err.BitLen)
+func (err ErrorSubtractionUnderflow) Error() string {
+	return fmt.Sprintf("the subtraction result on bit length %d underflow its min value", err.BitLen)
 }
 
 type ErrorDivisionByZero struct {

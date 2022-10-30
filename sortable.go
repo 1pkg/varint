@@ -8,7 +8,7 @@ type sortable struct {
 }
 
 func Sortable(vint VarInt) sort.Interface {
-	return sortable{vint: vint, bits: vint.varbits()}
+	return sortable{vint: vint, bits: vint.varbits(true)}
 }
 
 func (s sortable) Len() int {

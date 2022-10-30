@@ -143,7 +143,7 @@ func FuzzVarIntSub(f *testing.F) {
 		tt.VarIntSet(0, borig)
 		tt.VarIntSet(2, borig)
 		// Allow underflow error, but don't check bit equality then.
-		if !tt.NoError(vint.Sub(1, brnd), ErrorSubstitutionUnderflow{BitLen: borig.BitLen()}) {
+		if !tt.NoError(vint.Sub(1, brnd), ErrorSubtractionUnderflow{BitLen: borig.BitLen()}) {
 			tt.VarIntEqual(1, bsub)
 		}
 		// Second, check that others bits were not affected.
@@ -213,6 +213,42 @@ func FuzzVarIntDiv(f *testing.F) {
 		// Allow overflow error, but don't check bit equality then.
 		if !tt.NoError(vint.Div(1, brnd)) {
 			tt.VarIntEqual(1, bdiv)
+		}
+		// Second, check that others bits were not affected.
+		tt.VarIntEqual(0, borig)
+		tt.VarIntEqual(2, borig)
+	})
+}
+
+func FuzzVarIntMod(f *testing.F) {
+	const l = 3
+	seedfuzz(f)
+	f.Fuzz(func(t *testing.T, b62 string) {
+		tt := newtt(t)
+		// Initialize fuzz original bits and extra random bits
+		// in the range of [0, bits]. Then bootstrap big ints
+		// from them, calculate bit ints mod and compare to
+		// calculated mod of original % random bits.
+		borig := tt.NewBitsB62(b62)
+		dblen := borig.BitLen() / 2
+		if dblen == 0 {
+			dblen = 1
+		}
+		brnd := tt.NewBitsRand(dblen)
+		for brnd.Empty() {
+			brnd = tt.NewBitsRand(dblen)
+		}
+		brnd = tt.NewBits(borig.BitLen(), brnd.Bytes())
+		bmod := tt.NewBitsBigInt(big.NewInt(1).Mod(borig.BigInt(), brnd.BigInt()))
+		bmod = tt.NewBits(borig.BitLen(), bmod.Bytes())
+		vint := tt.NewVarInt(borig.BitLen(), l)
+		tt.VarIntSet(0, borig)
+		tt.VarIntSet(1, borig)
+		tt.VarIntSet(2, borig)
+		// First, modulo vint by random bits.
+		// Allow overflow error, but don't check bit equality then.
+		if !tt.NoError(vint.Mod(1, brnd)) {
+			tt.VarIntEqual(1, bmod)
 		}
 		// Second, check that others bits were not affected.
 		tt.VarIntEqual(0, borig)
@@ -335,7 +371,7 @@ func FuzzVarIntRsh(f *testing.F) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and bootstrap big int,
 		// shift them both bits and bigint to the right [0, bits+1].
-		// Finaly, compare calculated bit shifts with oriranal bits.
+		// Finally, compare calculated bit shifts with oriranal bits.
 		bits := tt.NewBitsB62(b62)
 		big, n := bits.BigInt(), tt.Int()%(bits.BitLen()+1)
 		big = big.Rsh(big, uint(n))
@@ -363,7 +399,7 @@ func FuzzVarIntLsh(f *testing.F) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and bootstrap big int,
 		// shift them both bits and bigint to the left [0, bits+1].
-		// Finaly, compare calculated bit shifts with oriranal bits.
+		// Finally, compare calculated bit shifts with oriranal bits.
 		bits := tt.NewBitsB62(b62)
 		big, n := bits.BigInt(), tt.Int()%(bits.BitLen()+1)
 		big = big.Lsh(big, uint(n))
