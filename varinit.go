@@ -5,6 +5,7 @@ import math_bits "math/bits"
 const (
 	rcap  = 2
 	wsize = math_bits.UintSize
+	wmax  = 1<<wsize - 1
 )
 
 type VarInt []uint

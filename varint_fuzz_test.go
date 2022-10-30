@@ -106,6 +106,7 @@ func FuzzVarIntAdd(f *testing.F) {
 		borig := tt.NewBitsB62(b62)
 		brnd := tt.NewBitsRand(borig.BitLen())
 		bsum := tt.NewBitsBigInt(big.NewInt(0).Add(borig.BigInt(), brnd.BigInt()))
+		bsum = tt.NewBits(borig.BitLen(), bsum.Bytes())
 		vint := tt.NewVarInt(borig.BitLen(), l)
 		tt.VarIntSet(0, borig)
 		tt.VarIntSet(2, borig)

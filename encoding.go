@@ -46,7 +46,7 @@ func Decode(r io.ReadCloser) (vint VarInt, err error) {
 			return nil, err
 		default:
 			if n%uisize != 0 {
-				return nil, err
+				return nil, ErrorReaderIsNotDecodable{}
 			}
 			bytes, bits = bytes[:n], bits[:n/uisize]
 			for i := range bits {
