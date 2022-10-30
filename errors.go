@@ -76,6 +76,13 @@ func (err ErrorBitLengthOperationUnderflow) Error() string {
 	return fmt.Sprintf("the operation result on bit length %d underflow its min value", err.BitLen)
 }
 
+type ErrorDivisionByZero struct {
+}
+
+func (ErrorDivisionByZero) Error() string {
+	return "division by 0 value divisor"
+}
+
 type ErrorStringIsNotValidNumber struct {
 	String string
 	Base   int
@@ -88,6 +95,6 @@ func (err ErrorStringIsNotValidNumber) Error() string {
 type ErrorReaderIsNotDecodable struct {
 }
 
-func (err ErrorReaderIsNotDecodable) Error() string {
+func (ErrorReaderIsNotDecodable) Error() string {
 	return "reader does not contain decodable bytes"
 }

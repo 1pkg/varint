@@ -522,6 +522,89 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 	return nil
 }
 
+func (vint VarInt) Div(i int, bits Bits) error {
+	// Check that non negative index was provided.
+	if i < 0 {
+		return ErrorIndexIsNegative{Index: i}
+	}
+	// Check that requested index is inside varint range.
+	if length := vint.Len(); i >= length {
+		return ErrorIndexIsOutOfRange{Index: i, Length: length}
+	}
+	blen := vint.BitLen()
+	if blenx := bits.BitLen(); blenx != blen {
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
+	}
+	if bits.Empty() {
+		return ErrorDivisionByZero{}
+	}
+	cmp, err := vint.Cmp(i, bits)
+	if err != nil {
+		return err
+	}
+	varbits := vint.varbits()
+	switch cmp {
+	case 0:
+		varbits[0] = 1
+		if err := vint.Set(i, varbits); err != nil {
+			return err
+		}
+		varbits[0] = 0
+		return nil
+	case -1:
+		return vint.GetSet(i, varbits)
+	default:
+	}
+	varbitsb := varbits.Bytes()
+	// Calculate starting and ending bit with
+	// starting and ending index inside vint respecitvely.
+	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	low, hiw := bfrom/wsize, bto/wsize
+	// Calculate left and right shifts to fix the uint result.
+	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
+	// Run bit len iterations to perform slow restoring division method here.
+	// Extra swaps with tmp bits variable is needed to perform all
+	// necessary left shifts and substitutes.
+	for j := 0; j < blen; j++ {
+		// Start with quotient Q in vint number and
+		// partial reminder R in tmp bits variable.
+		//
+		// Do a left shift across both RQ, by
+		// picking last bit from quotient Q in vint number
+		// and applying left shift. Then swap partial reminder R
+		// with vint number, apply left shift and set last memorized bit.
+		lb := vint[low] << lbshift >> (wsize - 1)
+		if err := vint.Lsh(i, 1); err != nil {
+			return err
+		}
+		if err := vint.GetSet(i, varbits); err != nil {
+			return err
+		}
+		if err := vint.Lsh(i, 1); err != nil {
+			return err
+		}
+		vint[hiw] |= lb << rbshift
+		// Compare partial reminder R in in vint number with divisor
+		// only substract it if it's bigger or equal to R and set
+		// last bit of quotient Q in tmp bits variable.
+		cmp, err := vint.Cmp(i, bits)
+		if err != nil {
+			return err
+		}
+		if cmp >= 0 {
+			if err := vint.Sub(i, bits); err != nil {
+				return err
+			}
+			varbitsb[0] |= 1
+		}
+		// Finaly swap R and Q back to restore the iteration state.
+		if err := vint.GetSet(i, varbits); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (vint VarInt) Not(i int) error {
 	// Check that non negative index was provided.
 	if i < 0 {

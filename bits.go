@@ -96,6 +96,21 @@ func (bits Bits) Bytes() []uint {
 	return bits[1:]
 }
 
+func (bits Bits) Empty() bool {
+	if bits == nil {
+		return true
+	}
+	if bits.BitLen() == 0 {
+		return true
+	}
+	for _, b := range bits.Bytes() {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (bits Bits) Uint() (uint, error) {
 	blen := bits.BitLen()
 	switch {
