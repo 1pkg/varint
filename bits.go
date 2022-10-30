@@ -117,7 +117,7 @@ func (bits Bits) Uint() (uint, error) {
 	case blen == 0:
 		return 0, nil
 	case blen > wsize:
-		return 0, ErrorBitLengthUintOveflow{BitLen: blen}
+		return 0, ErrorUintIntOveflow{BitLen: blen}
 	default:
 		return bits[1], nil
 	}
@@ -129,7 +129,7 @@ func (bits Bits) Int() (int, error) {
 	case blen == 0:
 		return 0, nil
 	case blen > wsize:
-		return 0, ErrorBitLengthUintOveflow{BitLen: blen}
+		return 0, ErrorUintIntOveflow{BitLen: blen}
 	default:
 		return int(bits[1]), nil
 	}

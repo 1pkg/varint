@@ -18,12 +18,12 @@ func (err ErrorLengthIsNegative) Error() string {
 	return fmt.Sprintf("length should be strictly positive number, but got %d", err.Len)
 }
 
-type ErrorBitLengthUintOveflow struct {
+type ErrorUintIntOveflow struct {
 	BitLen int
 }
 
-func (err ErrorBitLengthUintOveflow) Error() string {
-	return fmt.Sprintf("bit length %d overflows max size of uint %d", err.BitLen, wsize)
+func (err ErrorUintIntOveflow) Error() string {
+	return fmt.Sprintf("bit length %d overflows max size of uint/int %d", err.BitLen, wsize)
 }
 
 type ErrorBaseIsOutOfRange struct {
@@ -60,27 +60,35 @@ func (err ErrorUnequalBitLengthCardinality) Error() string {
 	return fmt.Sprintf("bit length %d do not have equal cardinality with %d", err.BitLenLeft, err.BitLenRight)
 }
 
-type ErrorBitLengthOperationOverflow struct {
+type ErrorAdditionOverflow struct {
 	BitLen int
 }
 
-func (err ErrorBitLengthOperationOverflow) Error() string {
-	return fmt.Sprintf("the operation result on bit length %d overflows its max value", err.BitLen)
+func (err ErrorAdditionOverflow) Error() string {
+	return fmt.Sprintf("the addition result on bit length %d overflows its max value", err.BitLen)
 }
 
-type ErrorBitLengthOperationUnderflow struct {
+type ErrorMultiplicationOverflow struct {
 	BitLen int
 }
 
-func (err ErrorBitLengthOperationUnderflow) Error() string {
-	return fmt.Sprintf("the operation result on bit length %d underflow its min value", err.BitLen)
+func (err ErrorMultiplicationOverflow) Error() string {
+	return fmt.Sprintf("the multiplication result on bit length %d overflows its max value", err.BitLen)
+}
+
+type ErrorSubstitutionUnderflow struct {
+	BitLen int
+}
+
+func (err ErrorSubstitutionUnderflow) Error() string {
+	return fmt.Sprintf("the substitution result on bit length %d underflow its min value", err.BitLen)
 }
 
 type ErrorDivisionByZero struct {
 }
 
 func (ErrorDivisionByZero) Error() string {
-	return "division by 0 value divisor"
+	return "the division result is undefined for 0 value divisor"
 }
 
 type ErrorStringIsNotValidNumber struct {

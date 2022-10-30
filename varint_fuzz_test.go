@@ -114,7 +114,7 @@ func FuzzVarIntAdd(f *testing.F) {
 		tt.VarIntEqual(1, borig)
 		// Second, add random bits to the same vint.
 		// Allow overflow error, but don't check bit equality then.
-		if !tt.NoError(vint.Add(1, brnd), ErrorBitLengthOperationOverflow{BitLen: borig.BitLen()}) {
+		if !tt.NoError(vint.Add(1, brnd), ErrorAdditionOverflow{BitLen: borig.BitLen()}) {
 			tt.VarIntEqual(1, bsum)
 		}
 		// Third, check that others bits were not affected.
@@ -143,7 +143,7 @@ func FuzzVarIntSub(f *testing.F) {
 		tt.VarIntSet(0, borig)
 		tt.VarIntSet(2, borig)
 		// Allow underflow error, but don't check bit equality then.
-		if !tt.NoError(vint.Sub(1, brnd), ErrorBitLengthOperationUnderflow{BitLen: borig.BitLen()}) {
+		if !tt.NoError(vint.Sub(1, brnd), ErrorSubstitutionUnderflow{BitLen: borig.BitLen()}) {
 			tt.VarIntEqual(1, bsub)
 		}
 		// Second, check that others bits were not affected.
@@ -164,17 +164,18 @@ func FuzzVarIntMul(f *testing.F) {
 		borig := tt.NewBitsB62(b62)
 		brnd := tt.NewBitsRand(borig.BitLen())
 		bmul := tt.NewBitsBigInt(big.NewInt(1).Mul(borig.BigInt(), brnd.BigInt()))
+		mblen := borig.BitLen() * 2
 		borig, brnd, bmul =
-			tt.NewBits(borig.BitLen()*2, borig.Bytes()),
-			tt.NewBits(borig.BitLen()*2, brnd.Bytes()),
-			tt.NewBits(borig.BitLen()*2, bmul.Bytes())
+			tt.NewBits(mblen, borig.Bytes()),
+			tt.NewBits(mblen, brnd.Bytes()),
+			tt.NewBits(mblen, bmul.Bytes())
 		vint := tt.NewVarInt(borig.BitLen(), l)
 		tt.VarIntSet(0, borig)
 		tt.VarIntSet(1, borig)
 		tt.VarIntSet(2, borig)
 		// First, multiply vint by random bits.
 		// Allow overflow error, but don't check bit equality then.
-		if !tt.NoError(vint.Mul(1, brnd), ErrorBitLengthOperationOverflow{BitLen: borig.BitLen()}) {
+		if !tt.NoError(vint.Mul(1, brnd), ErrorMultiplicationOverflow{BitLen: borig.BitLen()}) {
 			tt.VarIntEqual(1, bmul)
 		}
 		// Second, check that others bits were not affected.
@@ -193,9 +194,13 @@ func FuzzVarIntDiv(f *testing.F) {
 		// from them, calculate bit ints div and compare to
 		// calculated div of original / random bits.
 		borig := tt.NewBitsB62(b62)
-		var brnd Bits
+		dblen := borig.BitLen() / 2
+		if dblen == 0 {
+			dblen = 1
+		}
+		brnd := tt.NewBitsRand(dblen)
 		for brnd.Empty() {
-			brnd = tt.NewBitsRand(borig.BitLen() / 2)
+			brnd = tt.NewBitsRand(dblen)
 		}
 		brnd = tt.NewBits(borig.BitLen(), brnd.Bytes())
 		bdiv := tt.NewBitsBigInt(big.NewInt(1).Div(borig.BigInt(), brnd.BigInt()))
@@ -206,7 +211,7 @@ func FuzzVarIntDiv(f *testing.F) {
 		tt.VarIntSet(2, borig)
 		// First, divide vint by random bits.
 		// Allow overflow error, but don't check bit equality then.
-		if !tt.NoError(vint.Div(1, brnd), ErrorBitLengthOperationOverflow{BitLen: borig.BitLen()}) {
+		if !tt.NoError(vint.Div(1, brnd)) {
 			tt.VarIntEqual(1, bdiv)
 		}
 		// Second, check that others bits were not affected.

@@ -356,7 +356,7 @@ func (vint VarInt) Add(i int, bits Bits) error {
 		}
 	}
 	if carry > 0 {
-		return ErrorBitLengthOperationOverflow{BitLen: blen}
+		return ErrorAdditionOverflow{BitLen: blen}
 	}
 	return nil
 }
@@ -432,7 +432,7 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		}
 	}
 	if borrow > 0 {
-		return ErrorBitLengthOperationUnderflow{BitLen: blen}
+		return ErrorSubstitutionUnderflow{BitLen: blen}
 	}
 	return nil
 }
@@ -517,7 +517,7 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 		return err
 	}
 	if overflow {
-		return ErrorBitLengthOperationOverflow{BitLen: blen}
+		return ErrorMultiplicationOverflow{BitLen: blen}
 	}
 	return nil
 }
@@ -543,19 +543,19 @@ func (vint VarInt) Div(i int, bits Bits) error {
 		return err
 	}
 	varbits := vint.varbits()
+	varbitsb := varbits.Bytes()
 	switch cmp {
 	case 0:
-		varbits[0] = 1
+		varbitsb[0] = 1
 		if err := vint.Set(i, varbits); err != nil {
 			return err
 		}
-		varbits[0] = 0
+		varbitsb[0] = 0
 		return nil
 	case -1:
 		return vint.GetSet(i, varbits)
 	default:
 	}
-	varbitsb := varbits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respecitvely.
 	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
