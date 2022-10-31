@@ -31,7 +31,7 @@ type ErrorBaseIsOutOfRange struct {
 }
 
 func (err ErrorBaseIsOutOfRange) Error() string {
-	return fmt.Sprintf("base %d is out the range [2,62]", err.Base)
+	return fmt.Sprintf("base %d is out the range [%d,%d]", err.Base, minbase, maxbase)
 }
 
 type ErrorIndexIsNegative struct {

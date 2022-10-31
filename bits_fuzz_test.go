@@ -6,11 +6,12 @@ import (
 )
 
 func FuzzBitsString(f *testing.F) {
-	const base = 62
+	const base = maxbase
 	seedfuzz(f)
 	f.Fuzz(func(t *testing.T, b62 string) {
 		// Initialize fuzz original bits from b62 string,
 		// then do the same for bigint and compare resulting bits.
+		// Then compare their string formats as well.
 		// After that get b62 string back from bits, initialize
 		// another bits and compare them with original again.
 		tt := newtt(t)
@@ -21,6 +22,7 @@ func FuzzBitsString(f *testing.F) {
 			return
 		}
 		tt.Equal(bits, tt.NewBitsBigInt(b))
+		tt.Equal(bits.String(), b.String())
 		b62b, err := bits.Base(base)
 		tt.NoError(err)
 		bitsb, err := NewBitsString(string(b62b), base)

@@ -1,6 +1,7 @@
 package varint
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 	math_bits "math/bits"
@@ -8,10 +9,11 @@ import (
 	"strings"
 )
 
-// TODO for format for now just reuse big.Int for simplicity
-// untimetely after native mod-div is implemented use that instead.
-
-const b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	minbase   = 2
+	maxbase   = 62
+)
 
 type Bits []uint
 
@@ -57,15 +59,27 @@ func NewBits(blen int, bytes []uint) (Bits, error) {
 }
 
 func NewBitsUint(n uint) (Bits, error) {
-	return NewBits(wsize, []uint{n})
+	return NewBits(-1, []uint{n})
 }
 
 func NewBitsInt(n int) (Bits, error) {
-	return NewBits(wsize, []uint{uint(n)})
+	return NewBits(-1, []uint{uint(n)})
 }
 
 func NewBitsBits(bits Bits) (Bits, error) {
 	return NewBits(bits.BitLen(), bits.Bytes())
+}
+
+func NewBitsRand(blen int, rnd *rand.Rand) (Bits, error) {
+	// Calculate number of whole words plus
+	// one word if partial mod word is needed.
+	words := blen/wsize + (blen%wsize+wsize-1)/wsize
+	// Generate enough random bits.
+	bytes := make([]uint, 0, words)
+	for i := 0; i < words; i++ {
+		bytes = append(bytes, uint(rnd.Int()))
+	}
+	return NewBits(blen, bytes)
 }
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
@@ -78,7 +92,7 @@ func NewBitsBigInt(i *big.Int) (Bits, error) {
 }
 
 func NewBitsString(s string, base int) (Bits, error) {
-	if base < 2 || base > 62 {
+	if base < minbase || base > maxbase {
 		return nil, ErrorBaseIsOutOfRange{Base: base}
 	}
 	// Ignore leading + sign.
@@ -190,18 +204,6 @@ loop:
 	return NewBits(-1, bbmax.Bytes())
 }
 
-func NewBitsRand(blen int, rnd *rand.Rand) (Bits, error) {
-	// Calculate number of whole words plus
-	// one word if partial mod word is needed.
-	words := blen/wsize + (blen%wsize+wsize-1)/wsize
-	// Generate enough random bits.
-	bytes := make([]uint, 0, words)
-	for i := 0; i < words; i++ {
-		bytes = append(bytes, uint(rnd.Int()))
-	}
-	return NewBits(blen, bytes)
-}
-
 func (bits Bits) BitLen() int {
 	if bits == nil {
 		return 0
@@ -266,20 +268,73 @@ func (bits Bits) BigInt() *big.Int {
 	return i
 }
 
-func (bits Bits) Format(f fmt.State, verb rune) {
-	if verb == 'v' {
-		fmt.Fprintf(f, "[%d]{%X}", bits.BitLen(), bits)
-		return
-	}
-	bits.BigInt().Format(f, verb)
-}
-
 func (bits Bits) String() string {
 	return fmt.Sprintf("%s", bits)
 }
 
+func (bits Bits) Format(f fmt.State, verb rune) {
+	// Start with parsing prefered base and prefix.
+	var base int
+	var prefix string
+	switch verb {
+	case 'b':
+		base = 2
+	// A special prefix treatment for 'O'.
+	case 'O':
+		prefix = "0o"
+	case 'o':
+		base = 8
+	case 'd', 's', 'v':
+		base = 10
+	case 'x', 'X':
+		base = 16
+	// Use default case as catch all to
+	// print extra debug bit len information.
+	default:
+		b, _ := bits.Base(16)
+		fmt.Fprintf(f, "[%d]{%s}", bits.BitLen(), string(bytes.ToUpper(b)))
+		return
+	}
+	b, _ := bits.Base(base)
+	if f.Flag('#') {
+		switch verb {
+		case 'b':
+			prefix = "0b"
+		case 'o':
+			prefix = "0"
+		case 'x':
+			prefix = "0x"
+		// A special bytes treatment for 'X'.
+		case 'X':
+			prefix = "0X"
+			b = bytes.ToUpper(b)
+		}
+	}
+	// Calculate padding on left and zeros padding.
+	var left, zeros int
+	if width, ok := f.Width(); ok {
+		if d := width - len(prefix) - len(b); d > 0 {
+			if f.Flag('0') {
+				zeros = d
+			} else {
+				left = d
+			}
+		}
+	}
+	// Print final number as [left pad][prefix][zero pad][bytes].
+	var bs, b0 []byte = []byte{' '}, []byte{'0'}
+	for ; left > 0; left-- {
+		_, _ = f.Write(bs)
+	}
+	_, _ = f.Write([]byte(prefix))
+	for ; zeros > 0; zeros-- {
+		_, _ = f.Write(b0)
+	}
+	_, _ = f.Write(b)
+}
+
 func (bits Bits) Base(base int) ([]byte, error) {
-	if base < 2 || base > 62 {
+	if base < minbase || base > maxbase {
 		return nil, ErrorBaseIsOutOfRange{Base: base}
 	}
 	blen, ubase := bits.BitLen(), uint(base)
