@@ -131,7 +131,7 @@ loop:
 		switch {
 		case ch == '_' && i != 0 && i != ls-1:
 			// Allow _ as number separator anywhere,
-			// except beggining and end of the number.
+			// except beginning and end of the number.
 			continue loop
 		case '0' <= ch && ch <= '9':
 			w = uint(ch - '0')
@@ -149,7 +149,7 @@ loop:
 		if int(w) > base {
 			return nil, ErrorStringIsNotValidNumber{String: s, Base: base}
 		}
-		// Collect intermidiate number into buffer.
+		// Collect intermediate number into buffer.
 		psum = psum*ubase + w
 		// Then if buffer is full for the base,
 		// multiply the number by max base number
@@ -269,30 +269,33 @@ func (bits Bits) BigInt() *big.Int {
 }
 
 func (bits Bits) String() string {
-	return fmt.Sprintf("%s", bits)
+	return fmt.Sprintf("[%d]{%X}", bits.BitLen(), bits)
 }
 
 func (bits Bits) Format(f fmt.State, verb rune) {
-	// Start with parsing prefered base and prefix.
+	// Start with parsing preferred base and prefix.
 	var base int
 	var prefix string
+	var upper bool
 	switch verb {
 	case 'b':
 		base = 2
 	// A special prefix treatment for 'O'.
 	case 'O':
 		prefix = "0o"
+		fallthrough
 	case 'o':
 		base = 8
 	case 'd', 's', 'v':
 		base = 10
-	case 'x', 'X':
+	case 'X':
+		upper = true
+		fallthrough
+	case 'x':
 		base = 16
 	// Use default case as catch all to
 	// print extra debug bit len information.
 	default:
-		b, _ := bits.Base(16)
-		fmt.Fprintf(f, "[%d]{%s}", bits.BitLen(), string(bytes.ToUpper(b)))
 		return
 	}
 	b, _ := bits.Base(base)
@@ -307,8 +310,10 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 		// A special bytes treatment for 'X'.
 		case 'X':
 			prefix = "0X"
-			b = bytes.ToUpper(b)
 		}
+	}
+	if upper {
+		b = bytes.ToUpper(b)
 	}
 	// Calculate padding on left and zeros padding.
 	var left, zeros int

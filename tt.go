@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"math/rand"
 	"reflect"
-	"runtime/debug"
 	"testing"
 	"time"
 )
@@ -21,6 +20,7 @@ func newtt(t *testing.T) tt {
 }
 
 func (t *tt) NewVarInt(bits, length int) VarInt {
+	t.Helper()
 	vint, err := NewVarInt(bits, length)
 	if err != nil {
 		t.Fatal(err)
@@ -30,6 +30,7 @@ func (t *tt) NewVarInt(bits, length int) VarInt {
 }
 
 func (t tt) NewBits(bsize int, bits []uint) Bits {
+	t.Helper()
 	b, err := NewBits(bsize, bits)
 	if err != nil {
 		t.Fatal(err)
@@ -37,19 +38,8 @@ func (t tt) NewBits(bsize int, bits []uint) Bits {
 	return b
 }
 
-func (t tt) NewBitsZero(bsize int) Bits {
-	return t.NewBits(bsize, []uint{0x0})
-}
-
-func (t tt) NewBitsUint(n uint) Bits {
-	b, err := NewBitsUint(n)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
 func (t tt) NewBitsRand(bsize int) Bits {
+	t.Helper()
 	b, err := NewBitsRand(bsize, t.Rand)
 	if err != nil {
 		t.Fatal(err)
@@ -58,6 +48,7 @@ func (t tt) NewBitsRand(bsize int) Bits {
 }
 
 func (t tt) NewBitsBigInt(i *big.Int) Bits {
+	t.Helper()
 	b, err := NewBitsBigInt(i)
 	if err != nil {
 		t.Fatal(err)
@@ -66,6 +57,7 @@ func (t tt) NewBitsBigInt(i *big.Int) Bits {
 }
 
 func (t tt) NewBitsB62(b62 string) Bits {
+	t.Helper()
 	bits, err := NewBitsString(b62, 62)
 	if err != nil {
 		return t.NewBits(8, []uint{0xFF})
@@ -77,71 +69,65 @@ func (t tt) NewBitsB62(b62 string) Bits {
 }
 
 func (t tt) VarIntGet(i int) Bits {
+	t.Helper()
 	b := t.NewBits(t.BitLen(), nil)
 	if err := t.Get(i, b); err != nil {
-		debug.PrintStack()
 		t.Fatal(err)
 	}
 	return b
 }
 
 func (t tt) VarIntSet(i int, b Bits) {
+	t.Helper()
 	err := t.Set(i, b)
 	if err != nil {
-		debug.PrintStack()
 		t.Fatal(err)
 	}
 }
 
 func (t tt) VarIntCmp(i int, bits Bits) int {
+	t.Helper()
 	cmp, err := t.Cmp(i, bits)
 	if err != nil {
-		debug.PrintStack()
 		t.Fatal(err)
 	}
 	return cmp
 }
 
-func (t tt) VarIntEqual(i int, bits ...Bits) {
-	for _, b := range bits {
-		cmp, err := t.Cmp(i, b)
-		if err != nil {
-			debug.PrintStack()
-			t.Fatal(err)
-		}
-		if cmp == 0 {
-			return
-		}
+func (t tt) VarIntEqual(i int, bits Bits) {
+	t.Helper()
+	cmp, err := t.Cmp(i, bits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmp == 0 {
+		return
 	}
 	b := t.VarIntGet(i)
-	debug.PrintStack()
-	t.Fatalf("bits %v are not equal %v", bits, b)
+	t.Fatalf("bits %s are not equal %s", bits.String(), b.String())
 }
 
-func (t tt) VarIntNotEqual(i int, bits ...Bits) {
-	for _, b := range bits {
-		cmp, err := t.Cmp(i, b)
-		if err != nil {
-			debug.PrintStack()
-			t.Fatal(err)
-		}
-		if cmp != 0 {
-			return
-		}
+func (t tt) VarIntNotEqual(i int, bits Bits) {
+	t.Helper()
+	cmp, err := t.Cmp(i, bits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmp != 0 {
+		return
 	}
 	b := t.VarIntGet(i)
-	debug.PrintStack()
-	t.Fatalf("bits %v are equal %v", bits, b)
+	t.Fatalf("bits %s are equal %s", bits.String(), b.String())
 }
 
 func (t tt) NoError(err error, exceptions ...error) bool {
+	t.Helper()
 	if err != nil {
 		for _, except := range exceptions {
 			if err == except {
 				return true
 			}
 		}
-		debug.PrintStack()
 		t.Fatal(err)
 		return true
 	}
@@ -149,8 +135,8 @@ func (t tt) NoError(err error, exceptions ...error) bool {
 }
 
 func (t tt) Equal(i, j interface{}) {
+	t.Helper()
 	if !reflect.DeepEqual(i, j) {
-		debug.PrintStack()
 		t.Fatalf("values %v are not equal %v", i, j)
 	}
 }

@@ -37,7 +37,10 @@ func FuzzVarIntSetAndGet(f *testing.F) {
 			tt.Equal(bits, b)
 		}
 		for i := 0; i < l; i++ {
-			tt.VarIntEqual(i, bits, tt.NewBitsZero(bits.BitLen()))
+			// Check for zero or equal.
+			if !tt.VarIntGet(i).Empty() {
+				tt.VarIntEqual(i, bits)
+			}
 		}
 	})
 }

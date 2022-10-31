@@ -1,6 +1,7 @@
 package varint
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 )
@@ -22,7 +23,11 @@ func FuzzBitsString(f *testing.F) {
 			return
 		}
 		tt.Equal(bits, tt.NewBitsBigInt(b))
-		tt.Equal(bits.String(), b.String())
+		tt.Equal(fmt.Sprintf("%d", bits), fmt.Sprintf("%d", b))
+		tt.Equal(fmt.Sprintf("%X", bits), fmt.Sprintf("%X", b))
+		tt.Equal(fmt.Sprintf("%0b", bits), fmt.Sprintf("%0b", b))
+		tt.Equal(fmt.Sprintf("%100O", bits), fmt.Sprintf("%100O", b))
+		tt.Equal(bits.String(), fmt.Sprintf("[%d]{%X}", b.BitLen(), b))
 		b62b, err := bits.Base(base)
 		tt.NoError(err)
 		bitsb, err := NewBitsString(string(b62b), base)
