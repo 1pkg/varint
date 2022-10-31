@@ -48,7 +48,7 @@ func FuzzVarIntGetSet(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [1, bits]. Swap original bits and
+		// in the range of [0, BitLen]. Swap original bits and
 		// random bits two times so result should be the same.
 		bits := tt.NewBitsB62(b62)
 		brnd := tt.NewBitsRand(bits.BitLen())
@@ -73,7 +73,7 @@ func FuzzVarIntCmp(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [1, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, result of ints comparison should match
 		// vint comparison result.
 		bits := tt.NewBitsB62(b62)
@@ -100,7 +100,7 @@ func FuzzVarIntAdd(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [0, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints sum and compare to
 		// calculated sum of original + random bits.
 		borig := tt.NewBitsB62(b62)
@@ -130,7 +130,7 @@ func FuzzVarIntSub(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [1, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints sub and compare to
 		// calculated sub of original - random bits.
 		borig := tt.NewBitsB62(b62)
@@ -159,7 +159,7 @@ func FuzzVarIntMul(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [0, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints sum and compare to
 		// calculated mul of original * random bits.
 		borig := tt.NewBitsB62(b62)
@@ -191,7 +191,7 @@ func FuzzVarIntDiv(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [0, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints div and compare to
 		// calculated div of original / random bits.
 		borig := tt.NewBitsB62(b62)
@@ -227,7 +227,7 @@ func FuzzVarIntMod(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [0, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints mod and compare to
 		// calculated mod of original % random bits.
 		borig := tt.NewBitsB62(b62)
@@ -290,9 +290,9 @@ func FuzzVarIntAnd(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [1, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints bit and and compare to
-		// calculated bit and of original - random bits.
+		// calculated bit and of original & random bits.
 		borig := tt.NewBitsB62(b62)
 		brnd := tt.NewBitsRand(borig.BitLen())
 		band := tt.NewBitsBigInt(big.NewInt(0).And(borig.BigInt(), brnd.BigInt()))
@@ -317,9 +317,9 @@ func FuzzVarIntOr(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [1, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints bit or and compare to
-		// calculated bit or of original - random bits.
+		// calculated bit or of original | random bits.
 		borig := tt.NewBitsB62(b62)
 		brnd := tt.NewBitsRand(borig.BitLen())
 		bor := tt.NewBitsBigInt(big.NewInt(0).Or(borig.BigInt(), brnd.BigInt()))
@@ -344,9 +344,9 @@ func FuzzVarIntXor(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and extra random bits
-		// in the range of [1, bits]. Then bootstrap big ints
+		// in the range of [0, BitLen]. Then bootstrap big ints
 		// from them, calculate bit ints bit xor and compare to
-		// calculated bit xor of original - random bits.
+		// calculated bit xor of original ^ random bits.
 		borig := tt.NewBitsB62(b62)
 		brnd := tt.NewBitsRand(borig.BitLen())
 		bxor := tt.NewBitsBigInt(big.NewInt(0).Xor(borig.BigInt(), brnd.BigInt()))
@@ -371,7 +371,7 @@ func FuzzVarIntRsh(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and bootstrap big int,
-		// shift them both bits and bigint to the right [0, bits+1].
+		// shift them both bits and bigint to the right [0, BitLen+1].
 		// Finally, compare calculated bit shifts with oriranal bits.
 		bits := tt.NewBitsB62(b62)
 		big, n := bits.BigInt(), tt.Int()%(bits.BitLen()+1)
@@ -399,7 +399,7 @@ func FuzzVarIntLsh(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b62 string) {
 		tt := newtt(t)
 		// Initialize fuzz original bits and bootstrap big int,
-		// shift them both bits and bigint to the left [0, bits+1].
+		// shift them both bits and bigint to the left [0, BitLen+1].
 		// Finally, compare calculated bit shifts with oriranal bits.
 		bits := tt.NewBitsB62(b62)
 		big, n := bits.BigInt(), tt.Int()%(bits.BitLen()+1)

@@ -5,16 +5,17 @@ import (
 	"math/big"
 	math_bits "math/bits"
 	"math/rand"
+	"strings"
 )
 
 // TODO for format for now just reuse big.Int for simplicity
 // untimetely after native mod-div is implemented use that instead.
 
-const b62digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+const b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 type Bits []uint
 
-func NewBits(blen int, bits []uint) (Bits, error) {
+func NewBits(blen int, bytes []uint) (Bits, error) {
 	if blen == 0 {
 		return []uint{0}, nil
 	}
@@ -25,8 +26,14 @@ func NewBits(blen int, bits []uint) (Bits, error) {
 	words, bdelta := blen/wsize+(blen%wsize+wsize-1)/wsize, wsize-blen%wsize
 	// Calculate min bits size to hold provided bits slice.
 	var minblen int
-	if lb := len(bits) - 1; lb > -1 {
-		minblen = wsize*(lb) + math_bits.Len(uint(bits[lb]))
+	if lb := len(bytes) - 1; lb > -1 {
+		for ; lb > 0; lb-- {
+			// Exclude all 0 bytes at the beginning.
+			if bytes[lb] != 0 {
+				break
+			}
+		}
+		minblen = wsize*(lb) + math_bits.Len(uint(bytes[lb]))
 	}
 	switch {
 	// Special marker, use a guess min bits size.
@@ -36,16 +43,16 @@ func NewBits(blen int, bits []uint) (Bits, error) {
 		words = blen/wsize + (blen%wsize+wsize-1)/wsize
 	// Truncate original bits to provided size.
 	case blen < minblen:
-		bits = bits[:words]
+		bytes = bytes[:words]
 		// If delta shift is equal to word,
 		// there is nothing to shift.
 		if bdelta != wsize {
-			bits[words-1] = bits[words-1] << bdelta >> bdelta
+			bytes[words-1] = bytes[words-1] << bdelta >> bdelta
 		}
 	}
 	b := make([]uint, words+1)
 	b[0] = uint(blen)
-	copy(b[1:], bits)
+	copy(b[1:], bytes)
 	return b, nil
 }
 
@@ -63,22 +70,29 @@ func NewBitsBits(bits Bits) (Bits, error) {
 
 func NewBitsBigInt(i *big.Int) (Bits, error) {
 	words := i.Bits()
-	bits := make([]uint, 0, len(words))
+	bytes := make([]uint, 0, len(words))
 	for _, w := range words {
-		bits = append(bits, uint(w))
+		bytes = append(bytes, uint(w))
 	}
-	return NewBits(i.BitLen(), bits)
+	return NewBits(i.BitLen(), bytes)
 }
 
 func NewBitsString(s string, base int) (Bits, error) {
 	if base < 2 || base > 62 {
 		return nil, ErrorBaseIsOutOfRange{Base: base}
 	}
-	ls, ubase := len(s), uint(base)
+	// Ignore leading + sign.
+	ss := strings.TrimPrefix(s, "+")
+	// Fail prematurely for empty string input.
+	if ss == "" {
+		return nil, ErrorStringIsNotValidNumber{String: s, Base: base}
+	}
+	ls, ubase := len(ss), uint(base)
 	// Create a 1 varint to use multiplication and addition operations.
 	// The bit len of varint should be at least equal to
 	// length of the string * minimum number of bits required to represent base.
-	vint, err := NewVarInt(math_bits.Len(uint(base))*ls, 1)
+	blen := math_bits.Len(ubase) * ls
+	vint, err := NewVarInt(blen, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -90,15 +104,15 @@ func NewBitsString(s string, base int) (Bits, error) {
 		bmax *= ubase
 		bpow++
 	}
-	bbmax, err := NewBits(vint.BitLen(), []uint{bmax})
+	bbmax, err := NewBits(blen, []uint{bmax})
 	if err != nil {
 		return nil, err
 	}
 	var psum, pi uint
 loop:
-	for i := ls - 1; i >= 0; i-- {
+	for i := 0; i < ls; i++ {
 		// Convert next character into base number.
-		ch := s[i]
+		ch := ss[i]
 		var w uint
 		switch {
 		case ch == '_' && i != 0 && i != ls-1:
@@ -122,15 +136,16 @@ loop:
 			return nil, ErrorStringIsNotValidNumber{String: s, Base: base}
 		}
 		// Collect intermidiate number into buffer.
-		psum = psum*uint(base) + w
+		psum = psum*ubase + w
 		// Then if buffer is full for the base,
 		// multiply the number by max base number
 		// and add the temp buffer inside.
+		pi++
 		if pi == bpow {
 			if err := vint.Mul(0, bbmax); err != nil {
 				return nil, err
 			}
-			bpsum, err := NewBits(vint.BitLen(), []uint{psum})
+			bpsum, err := NewBits(blen, []uint{psum})
 			if err != nil {
 				return nil, err
 			}
@@ -139,7 +154,6 @@ loop:
 			}
 			psum, pi = 0, 0
 		}
-		pi++
 	}
 	// Flush last partial sum into the buffer.
 	if pi > 0 {
@@ -153,14 +167,14 @@ loop:
 			ubasex *= ubasex
 			pi >>= 1
 		}
-		bbmax, err := NewBits(vint.BitLen(), []uint{bnum})
+		bbmax, err := NewBits(blen, []uint{bnum})
 		if err != nil {
 			return nil, err
 		}
 		if err := vint.Mul(0, bbmax); err != nil {
 			return nil, err
 		}
-		bpsum, err := NewBits(vint.BitLen(), []uint{psum})
+		bpsum, err := NewBits(blen, []uint{psum})
 		if err != nil {
 			return nil, err
 		}
@@ -181,11 +195,11 @@ func NewBitsRand(blen int, rnd *rand.Rand) (Bits, error) {
 	// one word if partial mod word is needed.
 	words := blen/wsize + (blen%wsize+wsize-1)/wsize
 	// Generate enough random bits.
-	bits := make([]uint, 0, words)
+	bytes := make([]uint, 0, words)
 	for i := 0; i < words; i++ {
-		bits = append(bits, uint(rnd.Int()))
+		bytes = append(bytes, uint(rnd.Int()))
 	}
-	return NewBits(blen, bits)
+	return NewBits(blen, bytes)
 }
 
 func (bits Bits) BitLen() int {
@@ -268,20 +282,27 @@ func (bits Bits) Base(base int) ([]byte, error) {
 	if base < 2 || base > 62 {
 		return nil, ErrorBaseIsOutOfRange{Base: base}
 	}
+	blen, ubase := bits.BitLen(), uint(base)
+	if blen == 0 {
+		return []byte{'0'}, nil
+	}
+	if bmin := math_bits.Len(ubase); blen < bmin {
+		blen = bmin
+	}
 	// Create a tmp buffer variable for bits.
-	b, err := NewBitsBits(bits)
+	b, err := NewBits(blen, bits.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	// Create bits for provided base number for
 	// all the computations.
-	bs, err := NewBits(b.BitLen(), []uint{uint(base)})
+	bs, err := NewBits(blen, []uint{ubase})
 	if err != nil {
 		return nil, err
 	}
 	// Create a 1 varint to use division and modulo operations.
 	// And set it to the bits value first.
-	vint, err := NewVarInt(b.BitLen(), 1)
+	vint, err := NewVarInt(blen, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +310,7 @@ func (bits Bits) Base(base int) ([]byte, error) {
 		return nil, err
 	}
 	// Preallocate approximate resulting bytes.
-	r := make([]byte, 0, b.BitLen()/base)
+	r := make([]byte, 0, blen/base+1)
 	for run := true; run; {
 		// Start with division operation
 		// to advance to next digit.
@@ -314,13 +335,13 @@ func (bits Bits) Base(base int) ([]byte, error) {
 		}
 		mod, _ := b.Uint()
 		r = append(r, b62digits[mod])
-		// Swap original value back and continue iterating.
-		if err := vint.GetSet(0, b); err != nil {
+		// Override original value back and continue iterating.
+		if err := vint.Get(0, b); err != nil {
 			return nil, err
 		}
 	}
 	// Reverse the resulting bytes.
-	for i, j := 0, len(r)-1; i >= j; {
+	for i, j := 0, len(r)-1; i <= j; {
 		r[i], r[j] = r[j], r[i]
 		i++
 		j--
