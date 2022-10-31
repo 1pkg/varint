@@ -1,9 +1,9 @@
 package varint
 
 import (
-	"math/big"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,6 +19,31 @@ func newtt(t *testing.T) tt {
 	return tt{T: t, Rand: rnd}
 }
 
+func (t tt) NewBitsB62(b62 string) Bits {
+	t.Helper()
+	bits := NewBitsString(b62, 62)
+	if bits == nil {
+		t.SkipNow()
+	}
+	return bits
+}
+
+func (t tt) NewBits2B62(b62 string) (Bits, Bits) {
+	t.Helper()
+	rb62 := []rune(b62)
+	for i, j := 0, len(rb62)-1; i <= j; i, j = i+1, j-1 {
+		rb62[i], rb62[j] = rb62[j], rb62[i]
+	}
+	rb62s := string(rb62)
+	var b1, b2 Bits
+	if strings.Compare(b62, rb62s) < 0 {
+		b1, b2 = t.NewBitsB62(rb62s), t.NewBitsB62(b62)
+	} else {
+		b1, b2 = t.NewBitsB62(b62), t.NewBitsB62(rb62s)
+	}
+	return b1, NewBits(b1.BitLen(), b2.Bytes())
+}
+
 func (t *tt) NewVarInt(bits, length int) VarInt {
 	t.Helper()
 	vint, err := NewVarInt(bits, length)
@@ -29,48 +54,9 @@ func (t *tt) NewVarInt(bits, length int) VarInt {
 	return vint
 }
 
-func (t tt) NewBits(bsize int, bits []uint) Bits {
-	t.Helper()
-	b, err := NewBits(bsize, bits)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
-func (t tt) NewBitsRand(bsize int) Bits {
-	t.Helper()
-	b, err := NewBitsRand(bsize, t.Rand)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
-func (t tt) NewBitsBigInt(i *big.Int) Bits {
-	t.Helper()
-	b, err := NewBitsBigInt(i)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
-func (t tt) NewBitsB62(b62 string) Bits {
-	t.Helper()
-	bits, err := NewBitsString(b62, 62)
-	if err != nil {
-		return t.NewBits(8, []uint{0xFF})
-	}
-	if bits.BitLen() == 0 {
-		return t.NewBits(8, []uint{0xFF})
-	}
-	return bits
-}
-
 func (t tt) VarIntGet(i int) Bits {
 	t.Helper()
-	b := t.NewBits(t.BitLen(), nil)
+	b := NewBits(t.BitLen(), nil)
 	if err := t.Get(i, b); err != nil {
 		t.Fatal(err)
 	}

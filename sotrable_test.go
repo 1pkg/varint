@@ -5,12 +5,12 @@ import (
 	"testing"
 )
 
-func TestVarIntSortable(t *testing.T) {
+func TestVarIntSortableRand(t *testing.T) {
 	const len = 100
 	tt := newtt(t)
 	vint := tt.NewVarInt(len, len)
 	for i := 0; i < len; i++ {
-		bits := tt.NewBitsRand(len)
+		bits := NewBitsRand(len, tt.Rand)
 		tt.VarIntSet(i, bits)
 	}
 	sort.Sort(Sortable(vint))

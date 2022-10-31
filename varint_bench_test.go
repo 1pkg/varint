@@ -20,8 +20,8 @@ func BenchmarkAddGetVarIntvsSlice(b *testing.B) {
 	b.Run("Benchmark VarInt Add/Get", func(b *testing.B) {
 		mallocbench(b, func() {
 			vint, _ := NewVarInt(4, len)
-			bits, _ := NewBits(4, []uint{10})
-			tmp, _ := NewBits(4, nil)
+			bits := NewBits(4, []uint{10})
+			tmp := NewBits(4, nil)
 			for n := 0; n < b.N; n++ {
 				_ = vint.Add(n%len, bits)
 				_ = vint.Get(n%len, tmp)

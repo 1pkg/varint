@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-func TestVarIntEncoding(t *testing.T) {
+func TestVarIntEncodingRand(t *testing.T) {
 	const l = 10
 	for i := 0; i < l*l; i++ {
 		tt := newtt(t)
 		blen := tt.Int() % (l * l * l)
 		vint := tt.NewVarInt(blen, l)
 		for i := 0; i < l; i++ {
-			tt.VarIntSet(i, tt.NewBitsRand(blen))
+			tt.VarIntSet(i, NewBitsRand(blen, tt.Rand))
 		}
 		r := Encode(vint)
 		f, err := os.Create("encoding.out")

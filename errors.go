@@ -18,22 +18,6 @@ func (err ErrorLengthIsNegative) Error() string {
 	return fmt.Sprintf("length should be strictly positive number, but got %d", err.Len)
 }
 
-type ErrorUintIntOveflow struct {
-	BitLen int
-}
-
-func (err ErrorUintIntOveflow) Error() string {
-	return fmt.Sprintf("bit length %d overflows max size of uint/int %d", err.BitLen, wsize)
-}
-
-type ErrorBaseIsOutOfRange struct {
-	Base int
-}
-
-func (err ErrorBaseIsOutOfRange) Error() string {
-	return fmt.Sprintf("base %d is out the range [%d,%d]", err.Base, minbase, maxbase)
-}
-
 type ErrorIndexIsNegative struct {
 	Index int
 }

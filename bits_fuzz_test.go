@@ -17,21 +17,22 @@ func FuzzBitsString(f *testing.F) {
 		// another bits and compare them with original again.
 		tt := newtt(t)
 		b, ok := big.NewInt(0).SetString(b62, base)
-		bits, err := NewBitsString(b62, base)
-		// Skip if error is returned by any of bigint or bits.
-		if tt.NoError(err, ErrorStringIsNotValidNumber{String: b62, Base: base}) || !ok {
+		bits := NewBitsString(b62, base)
+		// Skip on empty bits or bigint error.
+		if bits.Empty() || !ok {
 			return
 		}
-		tt.Equal(bits, tt.NewBitsBigInt(b))
+		tt.Equal(bits, NewBitsBigInt(b))
 		tt.Equal(fmt.Sprintf("%d", bits), fmt.Sprintf("%d", b))
-		tt.Equal(fmt.Sprintf("%X", bits), fmt.Sprintf("%X", b))
+		tt.Equal(fmt.Sprintf("%#X", bits), fmt.Sprintf("%#X", b))
 		tt.Equal(fmt.Sprintf("%0b", bits), fmt.Sprintf("%0b", b))
+		tt.Equal(fmt.Sprintf("%#b", bits), fmt.Sprintf("%#b", b))
+		tt.Equal(fmt.Sprintf("%#o", bits), fmt.Sprintf("%#o", b))
+		tt.Equal(fmt.Sprintf("%#x", bits), fmt.Sprintf("%#x", b))
 		tt.Equal(fmt.Sprintf("%100O", bits), fmt.Sprintf("%100O", b))
-		tt.Equal(bits.String(), fmt.Sprintf("[%d]{%X}", b.BitLen(), b))
-		b62b, err := bits.Base(base)
-		tt.NoError(err)
-		bitsb, err := NewBitsString(string(b62b), base)
-		tt.NoError(err)
+		tt.Equal(fmt.Sprintf("%010x", bits), fmt.Sprintf("%010x", b))
+		tt.Equal(bits.String(), fmt.Sprintf("[%d]{%#X}", b.BitLen(), b))
+		bitsb := NewBitsString(string(bits.Base(base)), base)
 		tt.Equal(bits, bitsb)
 	})
 }
