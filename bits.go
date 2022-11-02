@@ -9,17 +9,13 @@ import (
 	"strings"
 )
 
-const (
-	b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	minbase   = 2
-	maxbase   = 62
-)
+const b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 type Bits []uint
 
 func NewBits(blen int, bytes []uint) Bits {
 	if blen == 0 {
-		return []uint{0, 0}
+		return []uint{0}
 	}
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
@@ -35,7 +31,7 @@ func NewBits(blen int, bytes []uint) Bits {
 				break
 			}
 		}
-		minblen = wsize*(lb) + math_bits.Len(uint(bytes[lb]))
+		minblen = wsize*lb + math_bits.Len(uint(bytes[lb]))
 	}
 	switch {
 	// Special marker, use a guess min bits size.
@@ -79,6 +75,9 @@ func NewBitsRand(blen int, rnd *rand.Rand) Bits {
 }
 
 func NewBitsBigInt(i *big.Int) Bits {
+	if i == nil {
+		return NewBitsUint(0)
+	}
 	words := i.Bits()
 	bytes := make([]uint, 0, len(words))
 	for _, w := range words {
@@ -89,11 +88,12 @@ func NewBitsBigInt(i *big.Int) Bits {
 
 func NewBitsString(s string, base int) Bits {
 	// Fix unsuported bases to closest supported.
+	const minb, maxb = 2, 62
 	switch {
-	case base < minbase:
-		base = minbase
-	case base > maxbase:
-		base = maxbase
+	case base < minb:
+		base = minb
+	case base > maxb:
+		base = maxb
 	}
 	// Ignore leading '+' sign.
 	ss := strings.TrimPrefix(s, "+")
@@ -299,11 +299,12 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 
 func (bits Bits) Base(base int) []byte {
 	// Fix unsuported bases to closest supported.
+	const minb, maxb = 2, 62
 	switch {
-	case base < minbase:
-		base = minbase
-	case base > maxbase:
-		base = maxbase
+	case base < minb:
+		base = minb
+	case base > maxb:
+		base = maxb
 	}
 	blen, ubase := bits.BitLen(), uint(base)
 	if blen == 0 {

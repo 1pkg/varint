@@ -7,7 +7,7 @@ import (
 )
 
 func FuzzBitsString(f *testing.F) {
-	const base = maxbase
+	const base = 62
 	seedfuzz(f)
 	f.Fuzz(func(t *testing.T, b62 string) {
 		// Initialize fuzz original bits from b62 string,
