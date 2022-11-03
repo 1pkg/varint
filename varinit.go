@@ -2,11 +2,7 @@ package varint
 
 import math_bits "math/bits"
 
-const (
-	rcap  = 2
-	wsize = math_bits.UintSize
-	wmax  = 1<<wsize - 1
-)
+const wsize = math_bits.UintSize
 
 type VarInt []uint
 
@@ -19,7 +15,7 @@ func NewVarInt(blen, len int) (VarInt, error) {
 	}
 	// Calculate capacity to fit all numbers with
 	// provided bit length and capacity.
-	cap := (blen*len+wsize-1)/wsize + rcap
+	cap := (blen*len+wsize-1)/wsize + 2
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
 	words := blen/wsize + (blen%wsize+wsize-1)/wsize
@@ -35,50 +31,29 @@ func NewVarInt(blen, len int) (VarInt, error) {
 	return vint, nil
 }
 
-func (vint VarInt) varbits(empty bool) Bits {
-	cap := (vint.BitLen()*vint.Len()+wsize-1)/wsize + rcap
-	b := Bits(vint[cap:])
-	if !empty {
-		return b
-	}
-	// Clear var bits state from prev manipulations.
-	for i := 1; i < len(vint)-cap; i++ {
-		b[i] = 0
-	}
-	return b
-}
-
-func (vint VarInt) Len() int {
-	return int(vint[0])
-}
-
-func (vint VarInt) BitLen() int {
-	return int(vint[1])
-}
-
 func (vint VarInt) Get(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	fullshift, adjrbshift := lbshift+rbshift, wsize-rbshift
 	// Iterate from high to low word and
 	// accumulate the combined words.
-	for i, k := 1, hiw; k >= low; k-- {
+	for i, k := 1, hiw; k >= low; k, i = k-1, i+1 {
 		switch {
 		// Special case, the point where low == high word is reached
 		// this means that extra word is needed to fit the last part
@@ -100,7 +75,6 @@ func (vint VarInt) Get(i int, bits Bits) error {
 		default:
 			bits[i] = vint[k-1]<<adjrbshift | vint[k]>>rbshift
 		}
-		i++
 	}
 	return nil
 }
@@ -111,17 +85,17 @@ func (vint VarInt) Set(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -166,17 +140,17 @@ func (vint VarInt) GetSet(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -227,17 +201,17 @@ func (vint VarInt) Cmp(i int, bits Bits) (int, error) {
 		return 0, ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return 0, ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return 0, ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -246,7 +220,7 @@ func (vint VarInt) Cmp(i int, bits Bits) (int, error) {
 	// Iterate over bits and from high to low word and
 	// compare the combined wordd in vint with provided bits.
 	var bk, b, cmp uint
-	for k, i := hiw, 0; i < len(bitsb); i++ {
+	for k, i := hiw, 0; i < len(bitsb); k, i = k-1, i+1 {
 		switch {
 		// Special case, the point where low == high word is reached
 		// this means that extra word is needed to fit the last part
@@ -268,7 +242,6 @@ func (vint VarInt) Cmp(i int, bits Bits) (int, error) {
 		default:
 			bk, b = vint[k-1]<<adjrbshift|vint[k]>>rbshift, bitsb[i]
 		}
-		k--
 		// Override the current result depending on words comparison.
 		switch {
 		case b > bk:
@@ -286,17 +259,17 @@ func (vint VarInt) Add(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -371,17 +344,17 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -447,18 +420,18 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
-	varbits := vint.varbits(true)
-	bitsb, varbitsb := bits.Bytes(), varbits.Bytes()
+	bvar := bvar(vint, true)
+	bitsb, bvarb := bits.Bytes(), bvar.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -472,13 +445,13 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 		b := bitsb[i]
 		// Iterate from high to low word and
 		// accumulate the combined words.
-		for j, k := 0, hiw; k >= low; k-- {
+		for j, k := 0, hiw; k >= low; k, j = k-1, j+1 {
 			// If out of temp bits buffer is riched,
 			// set carry flag and jump to next iteration.
 			w := i + j
 			if w >= maxl {
 				overflow = b != 0
-				continue
+				break
 			}
 			var bk uint
 			switch {
@@ -505,10 +478,9 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 			var c1, c2 uint
 			hi, lo := math_bits.Mul(bk, b)
 			lo, c1 = math_bits.Add(lo, carry, 0)
-			lo, c2 = math_bits.Add(lo, varbitsb[w], 0)
-			varbitsb[w] = lo
+			lo, c2 = math_bits.Add(lo, bvarb[w], 0)
+			bvarb[w] = lo
 			carry = hi + c1 + c2
-			j++
 		}
 		if carry > 0 {
 			overflow = true
@@ -517,7 +489,7 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 	}
 	// After multiplication is done set bits var
 	// back to i-th number and check for any error.
-	if err := vint.Set(i, varbits); err != nil {
+	if err := vint.Set(i, bvar); err != nil {
 		return err
 	}
 	if overflow {
@@ -532,10 +504,10 @@ func (vint VarInt) Div(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
@@ -549,23 +521,22 @@ func (vint VarInt) Div(i int, bits Bits) error {
 	if err != nil {
 		return err
 	}
-	varbits := vint.varbits(true)
-	varbitsb := varbits.Bytes()
+	bvar := bvar(vint, true)
 	switch cmp {
 	case 0:
-		varbitsb[0] = 1
-		if err := vint.Set(i, varbits); err != nil {
+		bvar[1] = 1
+		if err := vint.Set(i, bvar); err != nil {
 			return err
 		}
-		varbitsb[0] = 0
+		bvar[1] = 0
 		return nil
 	case -1:
-		return vint.GetSet(i, varbits)
+		return vint.GetSet(i, bvar)
 	default:
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -584,7 +555,7 @@ func (vint VarInt) Div(i int, bits Bits) error {
 		if err := vint.Lsh(i, 1); err != nil {
 			return err
 		}
-		if err := vint.GetSet(i, varbits); err != nil {
+		if err := vint.GetSet(i, bvar); err != nil {
 			return err
 		}
 		if err := vint.Lsh(i, 1); err != nil {
@@ -602,10 +573,10 @@ func (vint VarInt) Div(i int, bits Bits) error {
 			if err := vint.Sub(i, bits); err != nil {
 				return err
 			}
-			varbitsb[0] |= 1
+			bvar[1] |= 1
 		}
 		// Finally swap R and Q back to restore the iteration state.
-		if err := vint.GetSet(i, varbits); err != nil {
+		if err := vint.GetSet(i, bvar); err != nil {
 			return err
 		}
 	}
@@ -621,8 +592,7 @@ func (vint VarInt) Mod(i int, bits Bits) error {
 	}
 	// Get tmp bits variable with reminder inise,
 	// don't clear the previous and swap it with vint number.
-	varbits := vint.varbits(false)
-	return vint.GetSet(i, varbits)
+	return vint.GetSet(i, bvar(vint, false))
 }
 
 func (vint VarInt) Not(i int) error {
@@ -631,13 +601,13 @@ func (vint VarInt) Not(i int) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -681,17 +651,17 @@ func (vint VarInt) And(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -736,17 +706,17 @@ func (vint VarInt) Or(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -791,17 +761,17 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	if blenx := bits.BitLen(); blenx != blen {
 		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
 	}
 	bitsb := bits.Bytes()
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw := bfrom/wsize, bto/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
@@ -846,13 +816,13 @@ func (vint VarInt) Rsh(i, n int) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw, nw := bfrom/wsize, bto/wsize, n/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift, nbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto, n%wsize
@@ -917,13 +887,13 @@ func (vint VarInt) Lsh(i, n int) error {
 		return ErrorIndexIsNegative{Index: i}
 	}
 	// Check that requested index is inside varint range.
-	if length := vint.Len(); i >= length {
+	if length := Len(vint); i >= length {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
-	blen := vint.BitLen()
+	blen := BitLen(vint)
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*rcap, blen*(i+1)-1+wsize*rcap
+	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
 	low, hiw, nw := bfrom/wsize, bto/wsize, n/wsize
 	// Calculate left and right shifts to fix the uint result.
 	lbshift, rbshift, nbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto, n%wsize

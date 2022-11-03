@@ -22,7 +22,7 @@ func newtt(t *testing.T) tt {
 func (t tt) NewBitsB62(b62 string) Bits {
 	t.Helper()
 	bits := NewBitsString(b62, 62)
-	if bits == nil {
+	if bits.BitLen() == 0 {
 		t.SkipNow()
 	}
 	return bits
@@ -56,7 +56,7 @@ func (t *tt) NewVarInt(bits, length int) VarInt {
 
 func (t tt) VarIntGet(i int) Bits {
 	t.Helper()
-	b := NewBits(t.BitLen(), nil)
+	b := NewBits(BitLen(t.VarInt), nil)
 	if err := t.Get(i, b); err != nil {
 		t.Fatal(err)
 	}

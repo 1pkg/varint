@@ -3,6 +3,7 @@ package varint
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"math/big"
 	math_bits "math/bits"
 	"math/rand"
@@ -111,7 +112,7 @@ func NewBitsString(s string, base int) Bits {
 	// the word size and simultaneously calculate
 	// the max power with base which fits the word size.
 	bmax, bpow := ubase, uint(1)
-	for max := wmax / ubase; bmax <= max; {
+	for max := math.MaxUint / ubase; bmax <= max; {
 		bmax *= ubase
 		bpow++
 	}

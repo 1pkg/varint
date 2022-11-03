@@ -75,15 +75,6 @@ func (ErrorDivisionByZero) Error() string {
 	return "the division result is undefined for 0 value divisor"
 }
 
-type ErrorStringIsNotValidNumber struct {
-	String string
-	Base   int
-}
-
-func (err ErrorStringIsNotValidNumber) Error() string {
-	return fmt.Sprintf("string %s is not valid number with base %d", err.String, err.Base)
-}
-
 type ErrorReaderIsNotDecodable struct {
 }
 

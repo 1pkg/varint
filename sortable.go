@@ -1,18 +1,12 @@
 package varint
 
-import "sort"
-
 type sortable struct {
 	vint VarInt
 	bits Bits
 }
 
-func Sortable(vint VarInt) sort.Interface {
-	return sortable{vint: vint, bits: vint.varbits(true)}
-}
-
 func (s sortable) Len() int {
-	return s.vint.Len()
+	return Len(s.vint)
 }
 
 func (s sortable) Less(i, j int) bool {
