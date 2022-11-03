@@ -7,7 +7,7 @@ import (
 )
 
 func TestBitsNew(t *testing.T) {
-	t.Run("Combined", func(t *testing.T) {
+	test("Combined", t, func(th h) {
 		table := map[string]struct {
 			blen  int
 			bytes []uint
@@ -64,24 +64,23 @@ func TestBitsNew(t *testing.T) {
 			},
 		}
 		for tname, tcase := range table {
-			t.Run(tname, func(t *testing.T) {
-				tt := newtt(t)
+			test(tname, th.T, func(h h) {
 				b := NewBits(tcase.blen, tcase.bytes)
 				bn := NewBitsUint(tcase.n)
 				bb := NewBitsBits(tcase.bits)
 				bbig := NewBitsBigInt(tcase.big)
-				brnd := NewBitsRand(tcase.blen, tt.Rand)
+				brnd := NewBitsRand(tcase.blen, rnd)
 				bs := NewBitsString(tcase.s, tcase.base)
-				tt.Equal(tcase.bits, b)
-				tt.Equal(tcase.bits.Uint(), bn.Uint())
-				tt.Equal(tcase.bits, bb)
-				tt.Equal(tcase.bits, bbig)
-				tt.Equal(tcase.bits.BitLen(), brnd.BitLen())
-				tt.Equal(tcase.bits, bs)
+				h.Equal(tcase.bits, b)
+				h.Equal(tcase.bits.Uint(), bn.Uint())
+				h.Equal(tcase.bits, bb)
+				h.Equal(tcase.bits, bbig)
+				h.Equal(tcase.bits.BitLen(), brnd.BitLen())
+				h.Equal(tcase.bits, bs)
 			})
 		}
 	})
-	t.Run("String", func(t *testing.T) {
+	test("String", t, func(th h) {
 		table := map[string]struct {
 			s    string
 			base int
@@ -106,9 +105,8 @@ func TestBitsNew(t *testing.T) {
 			},
 		}
 		for tname, tcase := range table {
-			t.Run(tname, func(t *testing.T) {
-				tt := newtt(t)
-				tt.Equal(tcase.bits, NewBitsString(tcase.s, tcase.base))
+			test(tname, th.T, func(h h) {
+				h.Equal(tcase.bits, NewBitsString(tcase.s, tcase.base))
 			})
 		}
 	})
@@ -201,46 +199,43 @@ func TestBits(t *testing.T) {
 		},
 	}
 	for tname, tcase := range table {
-		t.Run(tname, func(t *testing.T) {
-			tt := newtt(t)
-			tt.Equal(tcase.blen, tcase.bits.BitLen())
-			tt.Equal(tcase.bytes, tcase.bits.Bytes())
-			tt.Equal(tcase.empty, tcase.bits.Empty())
-			tt.Equal(tcase.n, tcase.bits.Uint())
-			tt.Equal(tcase.big, tcase.bits.BigInt())
-			tt.Equal(tcase.s, tcase.bits.String())
-			tt.Equal(tcase.bs, string(tcase.bits.Base(tcase.base)))
+		test(tname, t, func(h h) {
+			h.Equal(tcase.blen, tcase.bits.BitLen())
+			h.Equal(tcase.bytes, tcase.bits.Bytes())
+			h.Equal(tcase.empty, tcase.bits.Empty())
+			h.Equal(tcase.n, tcase.bits.Uint())
+			h.Equal(tcase.big, tcase.bits.BigInt())
+			h.Equal(tcase.s, tcase.bits.String())
+			h.Equal(tcase.bs, string(tcase.bits.Base(tcase.base)))
 		})
 	}
 }
 
 func FuzzBitsFmt(f *testing.F) {
 	const base = 62
-	seedfuzz(f)
-	f.Fuzz(func(t *testing.T, b62 string) {
+	fuzz(f, func(h h, b62 string) {
 		// Initialize fuzz original bits from b62 string,
 		// then do the same for bigint and compare resulting bits.
 		// Then compare their string formats as well.
 		// After that get b62 string back from bits, initialize
 		// another bits and compare them with original again.
-		tt := newtt(t)
 		b, ok := big.NewInt(0).SetString(b62, base)
 		bits := NewBitsString(b62, base)
 		// Skip on empty bits or bigint error.
 		if bits.Empty() || !ok {
 			return
 		}
-		tt.Equal(bits, NewBitsBigInt(b))
-		tt.Equal(fmt.Sprintf("%d", bits), fmt.Sprintf("%d", b))
-		tt.Equal(fmt.Sprintf("%#X", bits), fmt.Sprintf("%#X", b))
-		tt.Equal(fmt.Sprintf("%0b", bits), fmt.Sprintf("%0b", b))
-		tt.Equal(fmt.Sprintf("%#b", bits), fmt.Sprintf("%#b", b))
-		tt.Equal(fmt.Sprintf("%#o", bits), fmt.Sprintf("%#o", b))
-		tt.Equal(fmt.Sprintf("%#x", bits), fmt.Sprintf("%#x", b))
-		tt.Equal(fmt.Sprintf("%100O", bits), fmt.Sprintf("%100O", b))
-		tt.Equal(fmt.Sprintf("%010x", bits), fmt.Sprintf("%010x", b))
-		tt.Equal(bits.String(), fmt.Sprintf("[%d]{%#X}", b.BitLen(), b))
+		h.Equal(bits, NewBitsBigInt(b))
+		h.Equal(fmt.Sprintf("%d", bits), fmt.Sprintf("%d", b))
+		h.Equal(fmt.Sprintf("%#X", bits), fmt.Sprintf("%#X", b))
+		h.Equal(fmt.Sprintf("%0b", bits), fmt.Sprintf("%0b", b))
+		h.Equal(fmt.Sprintf("%#b", bits), fmt.Sprintf("%#b", b))
+		h.Equal(fmt.Sprintf("%#o", bits), fmt.Sprintf("%#o", b))
+		h.Equal(fmt.Sprintf("%#x", bits), fmt.Sprintf("%#x", b))
+		h.Equal(fmt.Sprintf("%100O", bits), fmt.Sprintf("%100O", b))
+		h.Equal(fmt.Sprintf("%010x", bits), fmt.Sprintf("%010x", b))
+		h.Equal(bits.String(), fmt.Sprintf("[%d]{%#X}", b.BitLen(), b))
 		bitsb := NewBitsString(string(bits.Base(base)), base)
-		tt.Equal(bits, bitsb)
+		h.Equal(bits, bitsb)
 	})
 }
