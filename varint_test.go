@@ -5,6 +5,156 @@ import (
 	"testing"
 )
 
+func TestVarIntNew(t *testing.T) {
+	table := map[string]struct {
+		blen int
+		len  int
+		err  error
+		vint VarInt
+	}{
+		"zero bits len should resolve in expected error": {
+			blen: 0,
+			len:  10,
+			err:  ErrorBitLengthIsNotPositive{BitLen: 0},
+		},
+		"negative len should resolve in expected error": {
+			blen: 10,
+			len:  -1,
+			err:  ErrorLengthIsNotPositive{Len: -1},
+		},
+		"positive bits len and len resolve in valid vint": {
+			blen: 120,
+			len:  5,
+			vint: VarInt{5, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 120, 0, 0},
+		},
+	}
+	for tname, tcase := range table {
+		test(tname, t, func(h h) {
+			vint, err := NewVarInt(tcase.blen, tcase.len)
+			if !h.NoError(tcase.err, err) {
+				h.Equal(tcase.vint, vint)
+			}
+		})
+	}
+}
+
+func TestVarIntError(t *testing.T) {
+	const len = 10
+	test("Common", t, func(th h) {
+		table := map[string]struct {
+			i    int
+			bits Bits
+			err  error
+		}{
+			"common operations should return negative index error": {
+				i:    -1,
+				bits: NewBits(len, nil),
+				err:  ErrorIndexIsNegative{Index: -1},
+			},
+			"common operations should return index is out of range error": {
+				i:    2 * len,
+				bits: NewBits(len, nil),
+				err:  ErrorIndexIsOutOfRange{Index: 2 * len, Length: 10},
+			},
+			"common operations should return bit len cardinarity error": {
+				i:    1,
+				bits: NewBits(2*len, nil),
+				err:  ErrorUnequalBitLengthCardinality{BitLenLeft: len, BitLenRight: 2 * len},
+			},
+			"common operations should return a valid result for empty bits on valid index": {
+				i:    1,
+				bits: NewBits(len, []uint{1}),
+			},
+		}
+		for tname, tcase := range table {
+			test(tname, th.T, func(h h) {
+				vint := h.NewVarInt(len, len)
+				h.VarIntSet(1, NewBits(len, []uint{len}))
+				h.Equal(vint.Get(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Set(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.GetSet(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Add(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Sub(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Mul(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Div(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Mod(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Not(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.And(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Or(tcase.i, tcase.bits), tcase.err)
+				h.Equal(vint.Xor(tcase.i, tcase.bits), tcase.err)
+			})
+		}
+	})
+	test("Shifts", t, func(th h) {
+		table := map[string]struct {
+			i   int
+			n   int
+			err error
+		}{
+			"shift operations should return negative index error": {
+				i:   -1,
+				n:   1,
+				err: ErrorIndexIsNegative{Index: -1},
+			},
+			"shift operations should return index is out of range error": {
+				i:   2 * len,
+				n:   1,
+				err: ErrorIndexIsOutOfRange{Index: 2 * len, Length: 10},
+			},
+		}
+		for tname, tcase := range table {
+			test(tname, th.T, func(h h) {
+				vint := h.NewVarInt(len, len)
+				h.VarIntSet(1, NewBits(len, []uint{len}))
+				h.Equal(vint.Rsh(tcase.i, tcase.n), tcase.err)
+				h.Equal(vint.Lsh(tcase.i, tcase.n), tcase.err)
+			})
+		}
+	})
+	test("Math", t, func(th h) {
+		type vintOp func(i int, bits Bits) error
+		vint := th.NewVarInt(len, len)
+		table := map[string]struct {
+			op   vintOp
+			bits Bits
+			err  error
+		}{
+			"addition should return overflow error on bits overflow": {
+				op:   vint.Add,
+				bits: NewBits(len, []uint{1020}),
+				err:  ErrorAdditionOverflow{},
+			},
+			"subtraction should return underflow error on bits underflow": {
+				op:   vint.Sub,
+				bits: NewBits(len, []uint{16}),
+				err:  ErrorSubtractionUnderflow{},
+			},
+			"multiplication should return overflow error on bits overflow": {
+				op:   vint.Mul,
+				bits: NewBits(len, []uint{299}),
+				err:  ErrorMultiplicationOverflow{},
+			},
+			"division should return zero division error on division by zero": {
+				op:   vint.Div,
+				bits: NewBits(len, nil),
+				err:  ErrorDivisionByZero{},
+			},
+			"modulo should return zero division error on division by zero": {
+				op:   vint.Mod,
+				bits: NewBits(len, nil),
+				err:  ErrorDivisionByZero{},
+			},
+		}
+		for tname, tcase := range table {
+			test(tname, th.T, func(h h) {
+				h.VarInt = vint
+				h.VarIntSet(1, NewBits(len, []uint{len}))
+				h.Equal(tcase.op(1, tcase.bits), tcase.err)
+			})
+		}
+	})
+}
+
 func FuzzVarIntSetAndGet(f *testing.F) {
 	const l = 10
 	fuzz(f, func(h h, b62 string) {
@@ -66,7 +216,7 @@ func FuzzVarIntAdd(f *testing.F) {
 		h.VarIntEqual(1, b1)
 		// Add bits to the same vint second time.
 		// Allow overflow error, but don't check bits equality then.
-		if !h.NoError(vint.Add(1, b2), ErrorAdditionOverflow{BitLen: b1.BitLen()}) {
+		if !h.NoError(vint.Add(1, b2), ErrorAdditionOverflow{}) {
 			h.VarIntEqual(1, bsum)
 		}
 		// Check that others bits were not affected.
@@ -90,7 +240,7 @@ func FuzzVarIntSub(f *testing.F) {
 		h.VarIntSet(2, b1)
 		// Substract the bits.
 		// Allow underflow error, but don't check bit equality then.
-		if !h.NoError(vint.Sub(1, b2), ErrorSubtractionUnderflow{BitLen: b1.BitLen()}) {
+		if !h.NoError(vint.Sub(1, b2), ErrorSubtractionUnderflow{}) {
 			h.VarIntEqual(1, bsub)
 		}
 		// Check that others bits were not affected.
@@ -118,7 +268,7 @@ func FuzzVarIntMul(f *testing.F) {
 		h.VarIntSet(2, b1)
 		// Multiply vint the bits.
 		// Allow overflow error, but don't check bit equality then.
-		if !h.NoError(vint.Mul(1, b2), ErrorMultiplicationOverflow{BitLen: b1.BitLen()}) {
+		if !h.NoError(vint.Mul(1, b2), ErrorMultiplicationOverflow{}) {
 			h.VarIntEqual(1, bmul)
 		}
 		// Check that others bits were not affected.

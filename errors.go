@@ -2,20 +2,20 @@ package varint
 
 import "fmt"
 
-type ErrorBitLengthIsNegative struct {
+type ErrorBitLengthIsNotPositive struct {
 	BitLen int
 }
 
-func (err ErrorBitLengthIsNegative) Error() string {
-	return fmt.Sprintf("bit length should be strictly positive number, but got %d", err.BitLen)
+func (err ErrorBitLengthIsNotPositive) Error() string {
+	return fmt.Sprintf("bit length should be a strictly positive number, but got %d", err.BitLen)
 }
 
-type ErrorLengthIsNegative struct {
+type ErrorLengthIsNotPositive struct {
 	Len int
 }
 
-func (err ErrorLengthIsNegative) Error() string {
-	return fmt.Sprintf("length should be strictly positive number, but got %d", err.Len)
+func (err ErrorLengthIsNotPositive) Error() string {
+	return fmt.Sprintf("length should be a strictly positive number, but got %d", err.Len)
 }
 
 type ErrorIndexIsNegative struct {
@@ -23,7 +23,7 @@ type ErrorIndexIsNegative struct {
 }
 
 func (err ErrorIndexIsNegative) Error() string {
-	return fmt.Sprintf("index should be strictly positive number, but got %d", err.Index)
+	return fmt.Sprintf("index should not be a negative number, but got %d", err.Index)
 }
 
 type ErrorIndexIsOutOfRange struct {
@@ -45,27 +45,24 @@ func (err ErrorUnequalBitLengthCardinality) Error() string {
 }
 
 type ErrorAdditionOverflow struct {
-	BitLen int
 }
 
 func (err ErrorAdditionOverflow) Error() string {
-	return fmt.Sprintf("the addition result on bit length %d overflows its max value", err.BitLen)
+	return "the addition result overflows its max value"
 }
 
 type ErrorMultiplicationOverflow struct {
-	BitLen int
 }
 
 func (err ErrorMultiplicationOverflow) Error() string {
-	return fmt.Sprintf("the multiplication result on bit length %d overflows its max value", err.BitLen)
+	return "the multiplication result overflows its max value"
 }
 
 type ErrorSubtractionUnderflow struct {
-	BitLen int
 }
 
 func (err ErrorSubtractionUnderflow) Error() string {
-	return fmt.Sprintf("the subtraction result on bit length %d underflow its min value", err.BitLen)
+	return "the subtraction result underflow its min value"
 }
 
 type ErrorDivisionByZero struct {

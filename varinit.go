@@ -8,10 +8,10 @@ type VarInt []uint
 
 func NewVarInt(blen, len int) (VarInt, error) {
 	if blen <= 0 {
-		return nil, ErrorBitLengthIsNegative{BitLen: blen}
+		return nil, ErrorBitLengthIsNotPositive{BitLen: blen}
 	}
 	if len <= 0 {
-		return nil, ErrorLengthIsNegative{Len: len}
+		return nil, ErrorLengthIsNotPositive{Len: len}
 	}
 	// Calculate capacity to fit all numbers with
 	// provided bit length and capacity.
@@ -275,7 +275,7 @@ func (vint VarInt) Add(i int, bits Bits) error {
 		}
 	}
 	if carry > 0 {
-		return ErrorAdditionOverflow{BitLen: blen}
+		return ErrorAdditionOverflow{}
 	}
 	return nil
 }
@@ -311,7 +311,7 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		// this means that original word bits from vint need to be
 		// respected, note that bits on the right side preserved by default.
 		// Shift both parts of the word all the way to the right, preserving original
-		// right bits separately, substitute both borrow flag and right shifted provided bits,
+		// right bits separately, subtract both borrow flag and right shifted provided bits,
 		// finnaly restore separately preserved left bits back.
 		case k == low:
 			vbr, vbl := vint[k]<<adjrbshift>>adjrbshift, vint[k]>>adjlbshift<<adjlbshift
@@ -321,7 +321,7 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		// and leftover low word bits is enough to fit last bits provided word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
 		// Shift both parts of the word all the way to the right, preserving original
-		// right bits separately, substitute both borrow flag and right shifted provided bits,
+		// right bits separately, subtract both borrow flag and right shifted provided bits,
 		// finnaly restore separately preserved left bits back.
 		case k-1 == low && wsize <= fullshift:
 			onright := vint[k] << adjrbshift >> adjrbshift
@@ -333,7 +333,7 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 			vint[k] = onleft | vint[k]<<lbshift>>lbshift
 		// By default, for any word low != high shift both parts of the word
 		// all the way to the right, preserving original right bits separately,
-		// substitute both borrow flag and right shifted provided bits,
+		// subtract both borrow flag and right shifted provided bits,
 		// finnaly restore separately preserved left bits back.
 		default:
 			onright := vint[k] << adjrbshift >> adjrbshift
@@ -351,7 +351,7 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 		}
 	}
 	if borrow > 0 {
-		return ErrorSubtractionUnderflow{BitLen: blen}
+		return ErrorSubtractionUnderflow{}
 	}
 	return nil
 }
@@ -423,6 +423,11 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 			lo, c2 = math_bits.Add(lo, bvarb[w], 0)
 			bvarb[w] = lo
 			carry = hi + c1 + c2
+			// For the very last word check if final
+			// lower word result doesn't fit into bit len.
+			if k == low && carry == 0 && math_bits.Len(lo) > blen%wsize {
+				carry = 1
+			}
 		}
 		if carry > 0 {
 			overflow = true
@@ -433,7 +438,7 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 	// back to i-th number and check for any error.
 	_ = vint.Set(i, bvar)
 	if overflow {
-		return ErrorMultiplicationOverflow{BitLen: blen}
+		return ErrorMultiplicationOverflow{}
 	}
 	return nil
 }
@@ -484,7 +489,7 @@ func (vint VarInt) Div(i int, bits Bits) error {
 	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
 	// Run bit len iterations to perform slow restoring division method here.
 	// Extra swaps with tmp bits variable is needed to perform all
-	// necessary left shifts and substitutes.
+	// necessary left shifts and subtracts.
 	for j := 0; j < blen; j++ {
 		// Start with quotient Q in vint number and
 		// partial reminder R in tmp bits variable.

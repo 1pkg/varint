@@ -130,7 +130,6 @@ func (h h) NoError(err error, exceptions ...error) bool {
 			}
 		}
 		h.Fatal(err)
-		return true
 	}
 	return false
 }
