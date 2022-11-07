@@ -49,31 +49,6 @@ func FuzzVarIntGetSet(f *testing.F) {
 	})
 }
 
-func FuzzVarIntCmp(f *testing.F) {
-	const l = 3
-	fuzz(f, func(h h, b62 string) {
-		// Initialize fuzz bits pair. Then bootstrap big ints
-		// from them, result of ints comparison should match
-		// vint comparison result.
-		b1, b2 := h.NewBits2B62(b62)
-		for i := 0; i < rnd.Int()%l; i++ {
-			b1, b2 = b2, b1
-		}
-		cmp := b1.BigInt().Cmp(b2.BigInt())
-		vint := h.NewVarInt(b1.BitLen(), l)
-		h.VarIntSet(1, b1)
-		h.VarIntSet(2, b1)
-		h.VarIntSet(0, b1)
-		// Compare the bits.
-		vcmp, err := vint.Cmp(1, b2)
-		h.NoError(err)
-		h.Equal(cmp, vcmp)
-		// Check that others bits were not affected.
-		h.VarIntEqual(0, b1)
-		h.VarIntEqual(2, b1)
-	})
-}
-
 func FuzzVarIntAdd(f *testing.F) {
 	const l = 3
 	fuzz(f, func(h h, b62 string) {
@@ -211,16 +186,18 @@ func FuzzVarIntNot(f *testing.F) {
 		// First resul should be different from the bits.
 		// And second result should match the bits.
 		bits := h.NewBitsB62(b62)
+		bnot := NewBits(bits.BitLen(), nil)
 		vint := h.NewVarInt(bits.BitLen(), l)
 		h.VarIntSet(1, bits)
 		h.VarIntSet(0, bits)
 		h.VarIntSet(2, bits)
 		h.VarIntEqual(1, bits)
 		// Apply bit not ^ first time.
-		h.NoError(vint.Not(1))
+		h.NoError(vint.Not(1, bnot))
 		h.VarIntNotEqual(1, bits)
 		// Apply bit not ^ second time.
-		h.NoError(vint.Not(1))
+		h.NoError(vint.Not(1, bnot))
+		h.Equal(bits, bnot)
 		h.VarIntEqual(1, bits)
 		// Check that others bits were not affected.
 		h.VarIntEqual(0, bits)

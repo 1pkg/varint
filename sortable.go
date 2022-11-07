@@ -10,13 +10,16 @@ func (s sortable) Len() int {
 }
 
 func (s sortable) Less(i, j int) bool {
-	_ = s.vint.Get(j, s.bits)
-	r, _ := s.vint.Cmp(i, s.bits)
-	return r == -1
+	_ = s.vint.Get(i, s.bits)
+	_ = s.vint.GetSet(j, s.bits)
+	_, less := s.vint.Sub(i, s.bits).(ErrorSubtractionUnderflow)
+	_ = s.vint.GetSet(j, s.bits)
+	_ = s.vint.Set(i, s.bits)
+	return less
 }
 
 func (s sortable) Swap(i, j int) {
 	_ = s.vint.Get(j, s.bits)
 	_ = s.vint.GetSet(i, s.bits)
-	_ = s.vint.GetSet(j, s.bits)
+	_ = s.vint.Set(j, s.bits)
 }

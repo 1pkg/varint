@@ -235,7 +235,6 @@ func FuzzBitsFmt(f *testing.F) {
 		h.Equal(fmt.Sprintf("%100O", bits), fmt.Sprintf("%100O", b))
 		h.Equal(fmt.Sprintf("%010x", bits), fmt.Sprintf("%010x", b))
 		h.Equal(bits.String(), fmt.Sprintf("[%d]{%#X}", b.BitLen(), b))
-		bitsb := NewBitsString(string(bits.Base(base)), base)
-		h.Equal(bits, bitsb)
+		h.Equal(bits, NewBitsString(string(bits.Base(base)), base))
 	})
 }

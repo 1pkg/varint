@@ -103,38 +103,21 @@ func (h h) VarIntSet(i int, b Bits) {
 	}
 }
 
-func (h h) VarIntCmp(i int, bits Bits) int {
-	h.Helper()
-	cmp, err := h.Cmp(i, bits)
-	if err != nil {
-		h.Fatal(err)
-	}
-	return cmp
-}
-
 func (h h) VarIntEqual(i int, bits Bits) {
 	h.Helper()
-	cmp, err := h.Cmp(i, bits)
-	if err != nil {
-		h.Fatal(err)
-	}
-	if cmp == 0 {
+	b := h.VarIntGet(i)
+	if Equal(b, bits) {
 		return
 	}
-	b := h.VarIntGet(i)
 	h.Fatalf("bits %s are not equal %s", bits.String(), b.String())
 }
 
 func (h h) VarIntNotEqual(i int, bits Bits) {
 	h.Helper()
-	cmp, err := h.Cmp(i, bits)
-	if err != nil {
-		h.Fatal(err)
-	}
-	if cmp != 0 {
+	b := h.VarIntGet(i)
+	if !Equal(b, bits) {
 		return
 	}
-	b := h.VarIntGet(i)
 	h.Fatalf("bits %s are equal %s", bits.String(), b.String())
 }
 

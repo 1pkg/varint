@@ -195,64 +195,6 @@ func (vint VarInt) GetSet(i int, bits Bits) error {
 	return nil
 }
 
-func (vint VarInt) Cmp(i int, bits Bits) (int, error) {
-	// Check that non negative index was provided.
-	if i < 0 {
-		return 0, ErrorIndexIsNegative{Index: i}
-	}
-	// Check that requested index is inside varint range.
-	if length := Len(vint); i >= length {
-		return 0, ErrorIndexIsOutOfRange{Index: i, Length: length}
-	}
-	blen := BitLen(vint)
-	if blenx := bits.BitLen(); blenx != blen {
-		return 0, ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
-	}
-	bitsb := bits.Bytes()
-	// Calculate starting and ending bit with
-	// starting and ending index inside vint respectively.
-	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
-	low, hiw := bfrom/wsize, bto/wsize
-	// Calculate left and right shifts to fix the uint result.
-	lbshift, rbshift := bfrom-low*wsize, (hiw+1)*wsize-1-bto
-	// Calculate word size adjunctive left and right shifts.
-	adjrbshift, fullshift := wsize-rbshift, lbshift+rbshift
-	// Iterate over bits and from high to low word and
-	// compare the combined wordd in vint with provided bits.
-	var bk, b, cmp uint
-	for k, i := hiw, 0; i < len(bitsb); k, i = k-1, i+1 {
-		switch {
-		// Special case, the point where low == high word is reached
-		// this means that extra word is needed to fit the last part
-		// of low word. Combine it by shifting all excess bits on both
-		// left side and ride side of low word.
-		case k == low:
-			bk, b = vint[k]<<lbshift>>fullshift, bitsb[i]
-		// Special case, the point where low+1 == hight word is reached
-		// and leftover low word bits will fit into last result word size.
-		// This can be deduced from sum of left bit shift plus right bit shift.
-		// In case the sum is greater than word size, this means no extra result word is needed.
-		// Accumulate right shifted prev high word with left shifted and adjusted bits of low word.
-		case k-1 == low && wsize <= fullshift:
-			bk, b = vint[k-1]<<lbshift>>(lbshift-adjrbshift)|vint[k]>>rbshift, bitsb[i]
-			// Advance to mark low word as consumed, result is completed at this point.
-			k--
-		// By default, for any word low != high accumulate next full combined word
-		// by shifting the current and the next word parts to the right.
-		default:
-			bk, b = vint[k-1]<<adjrbshift|vint[k]>>rbshift, bitsb[i]
-		}
-		// Override the current result depending on words comparison.
-		switch {
-		case b > bk:
-			cmp = ^uint(0)
-		case b < bk:
-			cmp = 1
-		}
-	}
-	return int(cmp), nil
-}
-
 func (vint VarInt) Add(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
@@ -489,9 +431,7 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 	}
 	// After multiplication is done set bits var
 	// back to i-th number and check for any error.
-	if err := vint.Set(i, bvar); err != nil {
-		return err
-	}
+	_ = vint.Set(i, bvar)
 	if overflow {
 		return ErrorMultiplicationOverflow{BitLen: blen}
 	}
@@ -514,24 +454,26 @@ func (vint VarInt) Div(i int, bits Bits) error {
 	if bits.Empty() {
 		return ErrorDivisionByZero{}
 	}
+	// Sub-block to compare divisor and divident using bits var.
+	var cmp int
+	{
+		bvar := bvar(vint, true)
+		_ = vint.Get(i, bvar)
+		cmp = Compare(bvar, bits)
+	}
 	// Handle common cases early, in case
 	// divisior is equal to divident - quotient = 1 and reminder = 0
 	// divisior is greater than divident - quotient = 0 and reminder = divident.
-	cmp, err := vint.Cmp(i, bits)
-	if err != nil {
-		return err
-	}
 	bvar := bvar(vint, true)
 	switch cmp {
 	case 0:
 		bvar[1] = 1
-		if err := vint.Set(i, bvar); err != nil {
-			return err
-		}
+		_ = vint.Set(i, bvar)
 		bvar[1] = 0
 		return nil
 	case -1:
-		return vint.GetSet(i, bvar)
+		_ = vint.GetSet(i, bvar)
+		return nil
 	default:
 	}
 	// Calculate starting and ending bit with
@@ -552,32 +494,21 @@ func (vint VarInt) Div(i int, bits Bits) error {
 		// and applying left shift. Then swap partial reminder R
 		// with vint number, apply left shift and set last memorized bit.
 		lb := vint[low] << lbshift >> (wsize - 1)
-		if err := vint.Lsh(i, 1); err != nil {
-			return err
-		}
-		if err := vint.GetSet(i, bvar); err != nil {
-			return err
-		}
-		if err := vint.Lsh(i, 1); err != nil {
-			return err
-		}
+		_ = vint.Lsh(i, 1)
+		_ = vint.GetSet(i, bvar)
+		_ = vint.Lsh(i, 1)
 		vint[hiw] |= lb << rbshift
 		// Compare partial reminder R in in vint number with divisor
 		// only subtract it if it's bigger or equal to R and set
 		// last bit of quotient Q in tmp bits variable.
-		cmp, err := vint.Cmp(i, bits)
-		if err != nil {
-			return err
-		}
-		if cmp >= 0 {
-			if err := vint.Sub(i, bits); err != nil {
-				return err
-			}
+		_ = vint.GetSet(i, bvar)
+		if Compare(bvar, bits) >= 0 {
+			// Swap back to subtract from Q.
+			_ = vint.GetSet(i, bvar)
+			_ = vint.Sub(i, bits)
 			bvar[1] |= 1
-		}
-		// Finally swap R and Q back to restore the iteration state.
-		if err := vint.GetSet(i, bvar); err != nil {
-			return err
+			// Finally swap R and Q back to restore the iteration state.
+			_ = vint.GetSet(i, bvar)
 		}
 	}
 	return nil
@@ -586,16 +517,18 @@ func (vint VarInt) Div(i int, bits Bits) error {
 func (vint VarInt) Mod(i int, bits Bits) error {
 	// For modulo we can just use the fact that
 	// in division operation the reminder is left
-	// inside tmp bits variable.
+	// inside tmp bits variable. Reuse all the
+	// logic validation from div here.
 	if err := vint.Div(i, bits); err != nil {
 		return err
 	}
 	// Get tmp bits variable with reminder inise,
 	// don't clear the previous and swap it with vint number.
-	return vint.GetSet(i, bvar(vint, false))
+	_ = vint.GetSet(i, bvar(vint, false))
+	return nil
 }
 
-func (vint VarInt) Not(i int) error {
+func (vint VarInt) Not(i int, bits Bits) error {
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative{Index: i}
@@ -605,6 +538,9 @@ func (vint VarInt) Not(i int) error {
 		return ErrorIndexIsOutOfRange{Index: i, Length: length}
 	}
 	blen := BitLen(vint)
+	if blenx := bits.BitLen(); blenx != blen {
+		return ErrorUnequalBitLengthCardinality{BitLenLeft: blen, BitLenRight: blenx}
+	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
 	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
@@ -615,7 +551,7 @@ func (vint VarInt) Not(i int) error {
 	adjlbshift, adjrbshift, fullshift := wsize-lbshift, wsize-rbshift, lbshift+rbshift
 	// Iterate from high to low word and
 	// invert and override the combined words.
-	for k := hiw; k >= low; k-- {
+	for k, i := hiw, 1; k >= low; k, i = k-1, i+1 {
 		switch {
 		// Special case, the point where low == high word is reached
 		// this means that original word bits from vint need to be
@@ -625,6 +561,7 @@ func (vint VarInt) Not(i int) error {
 				vint[k]<<adjrbshift>>adjrbshift,
 				vint[k]>>adjlbshift<<adjlbshift
 			vint[k] = vbl | b | vbr
+			bits[i] = vint[k] << lbshift >> fullshift
 		// Special case, the point where low+1 == hight word is reached
 		// and leftover low word bits is enough to fit last bits provided word size.
 		// This can be deduced from sum of left bit shift plus right bit shift.
@@ -634,12 +571,14 @@ func (vint VarInt) Not(i int) error {
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | ^vint[k]>>rbshift<<rbshift
 			k--
 			vint[k] = vint[k]>>adjlbshift<<adjlbshift | ^vint[k]<<lbshift>>lbshift
+			bits[i] = vint[k]<<lbshift>>(lbshift-adjrbshift) | vint[k+1]>>rbshift
 		// By default, for any word low != high override word from provided bits
 		// by clearing vint right parts of the current and the next word and combining them
 		// with right shifted parts of inverted word.
 		default:
 			vint[k] = vint[k]<<adjrbshift>>adjrbshift | ^vint[k]>>rbshift<<rbshift
 			vint[k-1] = vint[k-1]>>rbshift<<rbshift | ^vint[k-1]<<adjrbshift>>adjrbshift
+			bits[i] = vint[k-1]<<adjrbshift | vint[k]>>rbshift
 		}
 	}
 	return nil

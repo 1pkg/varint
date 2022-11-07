@@ -36,6 +36,28 @@ func BitLen(vint VarInt) int {
 	return int(vint[1])
 }
 
+func Compare(lbits, rbits Bits) int {
+	switch lblen, rblen := lbits.BitLen(), rbits.BitLen(); {
+	case lblen < rblen:
+		return -1
+	case lblen > rblen:
+		return 1
+	}
+	for i := len(lbits) - 1; i > 0; i-- {
+		switch {
+		case lbits[i] < rbits[i]:
+			return -1
+		case lbits[i] > rbits[i]:
+			return 1
+		}
+	}
+	return 0
+}
+
+func Equal(lbits, rbits Bits) bool {
+	return Compare(lbits, rbits) == 0
+}
+
 func Sortable(vint VarInt) sort.Interface {
 	return sortable{vint: vint, bits: bvar(vint, true)}
 }
