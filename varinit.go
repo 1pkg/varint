@@ -479,7 +479,6 @@ func (vint VarInt) Div(i int, bits Bits) error {
 	case -1:
 		_ = vint.GetSet(i, bvar)
 		return nil
-	default:
 	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
@@ -503,18 +502,17 @@ func (vint VarInt) Div(i int, bits Bits) error {
 		_ = vint.GetSet(i, bvar)
 		_ = vint.Lsh(i, 1)
 		vint[hiw] |= lb << rbshift
-		// Compare partial reminder R in in vint number with divisor
-		// only subtract it if it's bigger or equal to R and set
-		// last bit of quotient Q in tmp bits variable.
-		_ = vint.GetSet(i, bvar)
-		if Compare(bvar, bits) >= 0 {
-			// Swap back to subtract from Q.
-			_ = vint.GetSet(i, bvar)
-			_ = vint.Sub(i, bits)
+		// Subtract partial reminder R in in vint number with divisor
+		// if it's greater or equal to R then set last bit of quotient
+		// Q in tmp bits variable, otherwise cancel Subtraction by addition.
+		switch vint.Sub(i, bits) {
+		case ErrorSubtractionUnderflow{}:
+			_ = vint.Add(i, bits)
+		case nil:
 			bvar[1] |= 1
-			// Finally swap R and Q back to restore the iteration state.
-			_ = vint.GetSet(i, bvar)
 		}
+		// Finally swap R and Q back to restore the iteration state.
+		_ = vint.GetSet(i, bvar)
 	}
 	return nil
 }
