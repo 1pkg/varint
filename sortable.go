@@ -11,7 +11,7 @@ func (s sortable) Len() int {
 
 func (s sortable) Less(i, j int) bool {
 	_ = s.vint.Get(j, s.bits)
-	less := s.vint.Sub(i, s.bits) == ErrorSubtractionUnderflow{}
+	less := s.vint.Sub(i, s.bits) == ErrorSubtractionUnderflow
 	_ = s.vint.Add(i, s.bits)
 	return less
 }

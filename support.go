@@ -6,28 +6,6 @@ import (
 	"sort"
 )
 
-func Compare(lbits, rbits Bits) int {
-	switch lblen, rblen := lbits.BitLen(), rbits.BitLen(); {
-	case lblen < rblen:
-		return -1
-	case lblen > rblen:
-		return 1
-	}
-	for i := len(lbits) - 1; i > 0; i-- {
-		switch {
-		case lbits[i] < rbits[i]:
-			return -1
-		case lbits[i] > rbits[i]:
-			return 1
-		}
-	}
-	return 0
-}
-
-func Equal(lbits, rbits Bits) bool {
-	return Compare(lbits, rbits) == 0
-}
-
 func bvar(vint VarInt, empty bool) Bits {
 	if vint == nil {
 		return nil
@@ -90,21 +68,19 @@ func Encode(vint VarInt) io.ReadCloser {
 	return r
 }
 
-func Decode(r io.ReadCloser) (vint VarInt, err error) {
+func Decode(r io.ReadCloser, vint VarInt) error {
 	const buflen, uisize = 1024, wsize / 8
-	var n int
-	bytes, bits := make([]byte, buflen*uisize), make([]uint, buflen)
+	bytes, bits, vi := make([]byte, buflen*uisize), make([]uint, buflen), 0
 	for {
-		n, err = r.Read(bytes)
+		n, err := r.Read(bytes)
 		switch {
 		case err == io.EOF:
-			err = nil
-			return
+			return nil
 		case err != nil:
-			return nil, err
+			return err
 		// Check that size of byte sequence is legit.
 		case n%uisize != 0:
-			return nil, ErrorReaderIsNotDecodable{}
+			return ErrorReaderIsNotDecodable
 		}
 		bytes, bits = bytes[:n], bits[:n/uisize]
 		for i := range bits {
@@ -115,6 +91,25 @@ func Decode(r io.ReadCloser) (vint VarInt, err error) {
 				bits[i] = uint(binary.BigEndian.Uint32(bytes[i*uisize:]))
 			}
 		}
-		vint = append(vint, bits...)
+		copy(vint[vi:], bits)
+		vi += len(bits)
 	}
+}
+
+func Compare(lbits, rbits Bits) int {
+	switch lblen, rblen := lbits.BitLen(), rbits.BitLen(); {
+	case lblen < rblen:
+		return -1
+	case lblen > rblen:
+		return 1
+	}
+	for i := len(lbits) - 1; i > 0; i-- {
+		switch {
+		case lbits[i] < rbits[i]:
+			return -1
+		case lbits[i] > rbits[i]:
+			return 1
+		}
+	}
+	return 0
 }

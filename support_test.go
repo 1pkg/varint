@@ -12,8 +12,8 @@ import (
 
 func TestSupport(t *testing.T) {
 	test("BitLenVar", t, func(th h) {
-		vint0, _ := NewVarInt(5, 10)
-		vint, _ := NewVarInt(6, 1)
+		vint0 := th.NewVarInt(5, 10)
+		vint := th.NewVarInt(6, 1)
 		_ = vint.Add(0, NewBitsRand(6, rnd))
 		_ = vint.Mul(0, NewBitsRand(6, rnd))
 		table := map[string]struct {
@@ -54,55 +54,46 @@ func TestSupport(t *testing.T) {
 			lbits Bits
 			rbits Bits
 			cmp   int
-			eq    bool
 		}{
 			"nil bits should be equal": {
 				lbits: nil,
 				rbits: nil,
 				cmp:   0,
-				eq:    true,
 			},
 			"empty bits should be equal": {
 				lbits: NewBits(0, nil),
 				rbits: NewBits(0, nil),
 				cmp:   0,
-				eq:    true,
 			},
 			"empty bits with different bit len size should not be equal": {
 				lbits: NewBits(0, nil),
 				rbits: NewBits(1, nil),
 				cmp:   -1,
-				eq:    false,
 			},
 			"bits on the left should be bigger": {
 				lbits: NewBits(100, []uint{0x1111111111111111, 0x99}),
 				rbits: NewBits(100, []uint{0x1111111111111111, 0x11}),
 				cmp:   1,
-				eq:    false,
 			},
 			"bits on the left should be smaller": {
 				lbits: NewBits(100, []uint{0x1111111111111111, 0x99}),
 				rbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				cmp:   -1,
-				eq:    false,
 			},
 			"not empty bits with same bit len size should be equal": {
 				lbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				rbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				cmp:   0,
-				eq:    true,
 			},
 			"not empty bits with different bit len size should be equal": {
 				lbits: NewBits(105, []uint{0x1111111111111111, 0x100}),
 				rbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				cmp:   1,
-				eq:    false,
 			},
 		}
 		for tname, tcase := range table {
 			test(tname, th.T, func(h h) {
 				h.Equal(Compare(tcase.lbits, tcase.rbits), tcase.cmp)
-				h.Equal(Equal(tcase.lbits, tcase.rbits), tcase.eq)
 			})
 		}
 	})
@@ -151,6 +142,7 @@ func TestEncodeDecode(t *testing.T) {
 		const l = 100
 		blen := rnd.Int()%l + 1
 		vint := h.NewVarInt(blen, l)
+		vintd := h.NewVarInt(blen, l)
 		for i := 0; i < l; i++ {
 			h.VarIntSet(i, NewBitsRand(blen, rnd))
 		}
@@ -163,12 +155,11 @@ func TestEncodeDecode(t *testing.T) {
 		h.NoError(f.Close())
 		f, err = os.Open(f.Name())
 		h.NoError(err)
-		nvint, err := Decode(f)
-		h.NoError(err)
+		h.NoError(Decode(f, vintd))
 		for i := 0; i < l; i++ {
 			h.VarInt = vint
 			bits := h.VarIntGet(i)
-			h.VarInt = nvint
+			h.VarInt = vintd
 			h.VarIntEqual(i, bits)
 		}
 		h.NoError(f.Close())
@@ -177,12 +168,43 @@ func TestEncodeDecode(t *testing.T) {
 		// Verify that encode and decode produces expected
 		// errors for broken input reader.
 		vint := h.NewVarInt(1, 1)
+		vintd := h.NewVarInt(1, 1)
 		r := Encode(vint)
 		h.NoError(r.Close())
 		ioerr := errors.New("test")
-		_, err := Decode(io.NopCloser(iotest.ErrReader(ioerr)))
+		err := Decode(io.NopCloser(iotest.ErrReader(ioerr)), vintd)
 		h.Equal(err, ioerr)
-		_, err = Decode(io.NopCloser(strings.NewReader("foobar")))
-		h.Equal(err, ErrorReaderIsNotDecodable{})
+		err = Decode(io.NopCloser(strings.NewReader("foobar")), vintd)
+		h.Equal(err, ErrorReaderIsNotDecodable)
+	})
+}
+
+func BenchmarkVarIntSupport(b *testing.B) {
+	// Allocate the actual numbers before the bench.
+	const len, blen = 1000000, 100
+	vint, _ := NewVarInt(blen, len)
+	vintd, _ := NewVarInt(blen, len)
+	for i := 0; i < len; i++ {
+		bits := NewBitsRand(blen, rnd)
+		_ = vint.Set(i, bits)
+	}
+	bits := NewBits(blen, nil)
+	bench("Benchmark VarInt Sort", b, func(b *testing.B) {
+		// Shuffle before the sorting and reset timer.
+		for i := 0; i < len; i++ {
+			j := rnd.Int() % len
+			_ = vint.Get(i, bits)
+			_ = vint.GetSet(j, bits)
+			_ = vint.Set(i, bits)
+		}
+		b.ResetTimer()
+		sort.Sort(Sortable(vint))
+	})
+	bench("Benchmark VarInt Encode", b, func(b *testing.B) {
+		r := Encode(vint)
+		_, _ = io.Copy(io.Discard, r)
+	})
+	bench("Benchmark VarInt Decode", b, func(b *testing.B) {
+		_ = Decode(Encode(vint), vintd)
 	})
 }

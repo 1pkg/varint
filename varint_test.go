@@ -15,12 +15,12 @@ func TestVarIntNew(t *testing.T) {
 		"zero bits len should resolve in expected error": {
 			blen: 0,
 			len:  10,
-			err:  ErrorBitLengthIsNotPositive{BitLen: 0},
+			err:  ErrorBitLengthIsNotPositive,
 		},
 		"negative len should resolve in expected error": {
 			blen: 10,
 			len:  -1,
-			err:  ErrorLengthIsNotPositive{Len: -1},
+			err:  ErrorLengthIsNotPositive,
 		},
 		"positive bits len and len resolve in valid vint": {
 			blen: 120,
@@ -38,7 +38,7 @@ func TestVarIntNew(t *testing.T) {
 	}
 }
 
-func TestVarIntError(t *testing.T) {
+func TestVarIntOperations(t *testing.T) {
 	const len = 10
 	test("Common", t, func(th h) {
 		table := map[string]struct {
@@ -49,17 +49,17 @@ func TestVarIntError(t *testing.T) {
 			"common operations should return negative index error": {
 				i:    -1,
 				bits: NewBits(len, nil),
-				err:  ErrorIndexIsNegative{Index: -1},
+				err:  ErrorIndexIsNegative,
 			},
 			"common operations should return index is out of range error": {
 				i:    2 * len,
 				bits: NewBits(len, nil),
-				err:  ErrorIndexIsOutOfRange{Index: 2 * len, Length: 10},
+				err:  ErrorIndexIsOutOfRange,
 			},
 			"common operations should return bit len cardinarity error": {
 				i:    1,
 				bits: NewBits(2*len, nil),
-				err:  ErrorUnequalBitLengthCardinality{BitLenLeft: len, BitLenRight: 2 * len},
+				err:  ErrorUnequalBitLengthCardinality,
 			},
 			"common operations should return a valid result for empty bits on valid index": {
 				i:    1,
@@ -78,10 +78,12 @@ func TestVarIntError(t *testing.T) {
 				h.Equal(vint.Mul(tcase.i, tcase.bits), tcase.err)
 				h.Equal(vint.Div(tcase.i, tcase.bits), tcase.err)
 				h.Equal(vint.Mod(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Not(tcase.i, tcase.bits), tcase.err)
 				h.Equal(vint.And(tcase.i, tcase.bits), tcase.err)
 				h.Equal(vint.Or(tcase.i, tcase.bits), tcase.err)
 				h.Equal(vint.Xor(tcase.i, tcase.bits), tcase.err)
+				if tcase.err != ErrorUnequalBitLengthCardinality {
+					h.Equal(vint.Not(tcase.i), tcase.err)
+				}
 			})
 		}
 	})
@@ -94,12 +96,12 @@ func TestVarIntError(t *testing.T) {
 			"shift operations should return negative index error": {
 				i:   -1,
 				n:   1,
-				err: ErrorIndexIsNegative{Index: -1},
+				err: ErrorIndexIsNegative,
 			},
 			"shift operations should return index is out of range error": {
 				i:   2 * len,
 				n:   1,
-				err: ErrorIndexIsOutOfRange{Index: 2 * len, Length: 10},
+				err: ErrorIndexIsOutOfRange,
 			},
 		}
 		for tname, tcase := range table {
@@ -112,37 +114,36 @@ func TestVarIntError(t *testing.T) {
 		}
 	})
 	test("Math", t, func(th h) {
-		type vintOp func(i int, bits Bits) error
 		vint := th.NewVarInt(len, len)
 		table := map[string]struct {
-			op   vintOp
+			op   func(i int, bits Bits) error
 			bits Bits
 			err  error
 		}{
 			"addition should return overflow error on bits overflow": {
 				op:   vint.Add,
 				bits: NewBits(len, []uint{1020}),
-				err:  ErrorAdditionOverflow{},
+				err:  ErrorAdditionOverflow,
 			},
 			"subtraction should return underflow error on bits underflow": {
 				op:   vint.Sub,
 				bits: NewBits(len, []uint{16}),
-				err:  ErrorSubtractionUnderflow{},
+				err:  ErrorSubtractionUnderflow,
 			},
 			"multiplication should return overflow error on bits overflow": {
 				op:   vint.Mul,
 				bits: NewBits(len, []uint{299}),
-				err:  ErrorMultiplicationOverflow{},
+				err:  ErrorMultiplicationOverflow,
 			},
 			"division should return zero division error on division by zero": {
 				op:   vint.Div,
 				bits: NewBits(len, nil),
-				err:  ErrorDivisionByZero{},
+				err:  ErrorDivisionByZero,
 			},
 			"modulo should return zero division error on division by zero": {
 				op:   vint.Mod,
 				bits: NewBits(len, nil),
-				err:  ErrorDivisionByZero{},
+				err:  ErrorDivisionByZero,
 			},
 		}
 		for tname, tcase := range table {
@@ -216,7 +217,7 @@ func FuzzVarIntAdd(f *testing.F) {
 		h.VarIntEqual(1, b1)
 		// Add bits to the same vint second time.
 		// Allow overflow error, but don't check bits equality then.
-		if !h.NoError(vint.Add(1, b2), ErrorAdditionOverflow{}) {
+		if !h.NoError(vint.Add(1, b2), ErrorAdditionOverflow) {
 			h.VarIntEqual(1, bsum)
 		}
 		// Check that others bits were not affected.
@@ -240,7 +241,7 @@ func FuzzVarIntSub(f *testing.F) {
 		h.VarIntSet(2, b1)
 		// Substract the bits.
 		// Allow underflow error, but don't check bit equality then.
-		if !h.NoError(vint.Sub(1, b2), ErrorSubtractionUnderflow{}) {
+		if !h.NoError(vint.Sub(1, b2), ErrorSubtractionUnderflow) {
 			h.VarIntEqual(1, bsub)
 		}
 		// Check that others bits were not affected.
@@ -268,7 +269,7 @@ func FuzzVarIntMul(f *testing.F) {
 		h.VarIntSet(2, b1)
 		// Multiply vint the bits.
 		// Allow overflow error, but don't check bit equality then.
-		if !h.NoError(vint.Mul(1, b2), ErrorMultiplicationOverflow{}) {
+		if !h.NoError(vint.Mul(1, b2), ErrorMultiplicationOverflow) {
 			h.VarIntEqual(1, bmul)
 		}
 		// Check that others bits were not affected.
@@ -336,18 +337,16 @@ func FuzzVarIntNot(f *testing.F) {
 		// First resul should be different from the bits.
 		// And second result should match the bits.
 		bits := h.NewBitsB62(b62)
-		bnot := NewBits(bits.BitLen(), nil)
 		vint := h.NewVarInt(bits.BitLen(), l)
 		h.VarIntSet(1, bits)
 		h.VarIntSet(0, bits)
 		h.VarIntSet(2, bits)
 		h.VarIntEqual(1, bits)
 		// Apply bit not ^ first time.
-		h.NoError(vint.Not(1, bnot))
+		h.NoError(vint.Not(1))
 		h.VarIntNotEqual(1, bits)
 		// Apply bit not ^ second time.
-		h.NoError(vint.Not(1, bnot))
-		h.Equal(bits, bnot)
+		h.NoError(vint.Not(1))
 		h.VarIntEqual(1, bits)
 		// Check that others bits were not affected.
 		h.VarIntEqual(0, bits)
@@ -469,22 +468,265 @@ func FuzzVarIntLsh(f *testing.F) {
 	})
 }
 
-func BenchmarkAddGetVarIntvsSlice(b *testing.B) {
-	const len = 100000000
-	bench("Benchmark VarInt Add/Get", b, func(b *testing.B) {
-		vint, _ := NewVarInt(4, len)
-		bits := NewBits(4, []uint{10})
-		tmp := NewBits(4, nil)
-		for n := 0; n < b.N; n++ {
-			_ = vint.Add(n%len, bits)
-			_ = vint.Get(n%len, tmp)
-		}
+func BenchmarkVarIntOperations(b *testing.B) {
+	bench("Benchmark Math", b, func(b *testing.B) {
+		bench("Tiny Numbers", b, func(b *testing.B) {
+			const len, blen = 100000000, 4
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{10})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Add(i, bits)
+					_ = vint.Sub(i, bits)
+					_ = vint.Mul(i, bits)
+					_ = vint.Add(i, bits)
+					_ = vint.Div(i, bits)
+					_ = vint.Set(i, bits)
+					_ = vint.Mod(i, bits)
+					_ = vint.Get(i, bits)
+				}
+			})
+			bench("Uint8 Slice Operations", b, func(b *testing.B) {
+				slice := make([]uint8, len)
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					slice[i] += 10
+					slice[i] -= 10
+					slice[i] *= 10
+					slice[i] += 10
+					slice[i] /= 10
+					slice[i] = 10
+					slice[i] %= 10
+					_ = slice[i]
+				}
+			})
+		})
+		bench("Word 64 Bits Numbers", b, func(b *testing.B) {
+			const len, blen = 10000000, 64
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{1000000000})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Add(i, bits)
+					_ = vint.Sub(i, bits)
+					_ = vint.Mul(i, bits)
+					_ = vint.Add(i, bits)
+					_ = vint.Div(i, bits)
+					_ = vint.Set(i, bits)
+					_ = vint.Mod(i, bits)
+					_ = vint.Get(i, bits)
+				}
+			})
+			bench("Uint64 Slice Operations", b, func(b *testing.B) {
+				slice := make([]uint64, len)
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					slice[i] += 1000000000
+					slice[i] -= 1000000000
+					slice[i] *= 1000000000
+					slice[i] += 1000000000
+					slice[i] /= 1000000000
+					slice[i] = 1000000000
+					slice[i] %= 1000000000
+					_ = slice[i]
+				}
+			})
+		})
+		bench("Medium Large Numbers", b, func(b *testing.B) {
+			const len, blen = 10000000, 100
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{0x123, 0x456})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Add(i, bits)
+					_ = vint.Sub(i, bits)
+					_ = vint.Mul(i, bits)
+					_ = vint.Add(i, bits)
+					_ = vint.Div(i, bits)
+					_ = vint.Set(i, bits)
+					_ = vint.Mod(i, bits)
+					_ = vint.Get(i, bits)
+				}
+			})
+			bench("BigInt Slice Operations", b, func(b *testing.B) {
+				slice := make([]*big.Int, len)
+				for i := 0; i < len; i++ {
+					slice[i] = new(big.Int)
+				}
+				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = slice[i].Add(slice[i], bits)
+					_ = slice[i].Sub(slice[i], bits)
+					_ = slice[i].Mul(slice[i], bits)
+					_ = slice[i].Add(slice[i], bits)
+					_ = slice[i].Div(slice[i], bits)
+					_ = slice[i].Set(bits)
+					_ = slice[i].Mod(slice[i], bits)
+					_ = slice[i].Bytes()
+				}
+			})
+		})
+		bench("Big Large Numbers", b, func(b *testing.B) {
+			const len, blen = 100000, 10000
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Add(i, bits)
+					_ = vint.Sub(i, bits)
+					_ = vint.Mul(i, bits)
+					_ = vint.Add(i, bits)
+					_ = vint.Div(i, bits)
+					_ = vint.Set(i, bits)
+					_ = vint.Mod(i, bits)
+					_ = vint.Get(i, bits)
+				}
+			})
+			bench("BigInt Slice Operations", b, func(b *testing.B) {
+				slice := make([]*big.Int, len)
+				for i := 0; i < len; i++ {
+					slice[i] = new(big.Int)
+				}
+				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = slice[i].Add(slice[i], bits)
+					_ = slice[i].Sub(slice[i], bits)
+					_ = slice[i].Mul(slice[i], bits)
+					_ = slice[i].Add(slice[i], bits)
+					_ = slice[i].Div(slice[i], bits)
+					_ = slice[i].Set(bits)
+					_ = slice[i].Mod(slice[i], bits)
+					_ = slice[i].Bytes()
+				}
+			})
+		})
 	})
-	bench("Benchmark Slice Add/Get", b, func(b *testing.B) {
-		slice := make([]uint8, len)
-		for n := 0; n < b.N; n++ {
-			slice[n%len] += 10
-			_ = slice[n%len]
-		}
+	bench("Benchmark Binary Operations", b, func(b *testing.B) {
+		bench("Tiny Numbers", b, func(b *testing.B) {
+			const len, blen = 100000000, 4
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{10})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Or(i, bits)
+					_ = vint.Xor(i, bits)
+					_ = vint.And(i, bits)
+					_ = vint.Not(i)
+					_ = vint.Lsh(i, blen)
+					_ = vint.Rsh(i, blen)
+				}
+			})
+			bench("Uint8 Slice Operations", b, func(b *testing.B) {
+				slice := make([]uint8, len)
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					slice[i] |= 10
+					slice[i] ^= 10
+					slice[i] &= 10
+					slice[i] = ^slice[i]
+					slice[i] <<= blen
+					slice[i] >>= blen
+				}
+			})
+		})
+		bench("Word 64 Bits Numbers", b, func(b *testing.B) {
+			const len, blen = 10000000, 64
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{1000000000})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Or(i, bits)
+					_ = vint.Xor(i, bits)
+					_ = vint.And(i, bits)
+					_ = vint.Not(i)
+					_ = vint.Lsh(i, blen)
+					_ = vint.Rsh(i, blen)
+				}
+			})
+			bench("Uint64 Slice Operations", b, func(b *testing.B) {
+				slice := make([]uint64, len)
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					slice[i] |= 10
+					slice[i] ^= 10
+					slice[i] &= 10
+					slice[i] = ^slice[i]
+					slice[i] <<= blen - 1
+					slice[i] >>= blen - 1
+				}
+			})
+		})
+		bench("Medium Large Numbers", b, func(b *testing.B) {
+			const len, blen = 10000000, 100
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{0x123, 0x456})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Or(i, bits)
+					_ = vint.Xor(i, bits)
+					_ = vint.And(i, bits)
+					_ = vint.Not(i)
+					_ = vint.Lsh(i, blen)
+					_ = vint.Rsh(i, blen)
+				}
+			})
+			bench("BigInt Slice Operations", b, func(b *testing.B) {
+				slice := make([]*big.Int, len)
+				for i := 0; i < len; i++ {
+					slice[i] = new(big.Int)
+				}
+				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = slice[i].Or(slice[i], bits)
+					_ = slice[i].Xor(slice[i], bits)
+					_ = slice[i].And(slice[i], bits)
+					_ = slice[i].Not(slice[i])
+					_ = slice[i].Lsh(slice[i], blen)
+					_ = slice[i].Rsh(bits, blen)
+				}
+			})
+		})
+		bench("Big Large Numbers", b, func(b *testing.B) {
+			const len, blen = 100000, 10000
+			bench("VarInt Operations", b, func(b *testing.B) {
+				vint, _ := NewVarInt(blen, len)
+				bits := NewBits(blen, []uint{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = vint.Or(i, bits)
+					_ = vint.Xor(i, bits)
+					_ = vint.And(i, bits)
+					_ = vint.Not(i)
+					_ = vint.Lsh(i, blen)
+					_ = vint.Rsh(i, blen)
+				}
+			})
+			bench("BigInt Slice Operations", b, func(b *testing.B) {
+				slice := make([]*big.Int, len)
+				for i := 0; i < len; i++ {
+					slice[i] = new(big.Int)
+				}
+				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				for n := 0; n < b.N; n++ {
+					i := n % len
+					_ = slice[i].Or(slice[i], bits)
+					_ = slice[i].Xor(slice[i], bits)
+					_ = slice[i].And(slice[i], bits)
+					_ = slice[i].Not(slice[i])
+					_ = slice[i].Lsh(slice[i], blen)
+					_ = slice[i].Rsh(bits, blen)
+				}
+			})
+		})
 	})
 }

@@ -106,7 +106,7 @@ func (h h) VarIntSet(i int, b Bits) {
 func (h h) VarIntEqual(i int, bits Bits) {
 	h.Helper()
 	b := h.VarIntGet(i)
-	if Equal(b, bits) {
+	if Compare(b, bits) == 0 {
 		return
 	}
 	h.Fatalf("bits %s are not equal %s", bits.String(), b.String())
@@ -115,7 +115,7 @@ func (h h) VarIntEqual(i int, bits Bits) {
 func (h h) VarIntNotEqual(i int, bits Bits) {
 	h.Helper()
 	b := h.VarIntGet(i)
-	if !Equal(b, bits) {
+	if Compare(b, bits) != 0 {
 		return
 	}
 	h.Fatalf("bits %s are equal %s", bits.String(), b.String())
