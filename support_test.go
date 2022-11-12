@@ -51,49 +51,49 @@ func TestSupport(t *testing.T) {
 	})
 	test("Compare", t, func(th h) {
 		table := map[string]struct {
-			lbits Bits
-			rbits Bits
+			abits Bits
+			bbits Bits
 			cmp   int
 		}{
 			"nil bits should be equal": {
-				lbits: nil,
-				rbits: nil,
+				abits: nil,
+				bbits: nil,
 				cmp:   0,
 			},
 			"empty bits should be equal": {
-				lbits: NewBits(0, nil),
-				rbits: NewBits(0, nil),
+				abits: NewBits(0, nil),
+				bbits: NewBits(0, nil),
 				cmp:   0,
 			},
 			"empty bits with different bit len size should not be equal": {
-				lbits: NewBits(0, nil),
-				rbits: NewBits(1, nil),
+				abits: NewBits(0, nil),
+				bbits: NewBits(1, nil),
 				cmp:   -1,
 			},
 			"bits on the left should be bigger": {
-				lbits: NewBits(100, []uint{0x1111111111111111, 0x99}),
-				rbits: NewBits(100, []uint{0x1111111111111111, 0x11}),
+				abits: NewBits(100, []uint{0x1111111111111111, 0x99}),
+				bbits: NewBits(100, []uint{0x1111111111111111, 0x11}),
 				cmp:   1,
 			},
 			"bits on the left should be smaller": {
-				lbits: NewBits(100, []uint{0x1111111111111111, 0x99}),
-				rbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
+				abits: NewBits(100, []uint{0x1111111111111111, 0x99}),
+				bbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				cmp:   -1,
 			},
 			"not empty bits with same bit len size should be equal": {
-				lbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
-				rbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
+				abits: NewBits(100, []uint{0x1111111111111111, 0x100}),
+				bbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				cmp:   0,
 			},
 			"not empty bits with different bit len size should be equal": {
-				lbits: NewBits(105, []uint{0x1111111111111111, 0x100}),
-				rbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
+				abits: NewBits(105, []uint{0x1111111111111111, 0x100}),
+				bbits: NewBits(100, []uint{0x1111111111111111, 0x100}),
 				cmp:   1,
 			},
 		}
 		for tname, tcase := range table {
 			test(tname, th.T, func(h h) {
-				h.Equal(Compare(tcase.lbits, tcase.rbits), tcase.cmp)
+				h.Equal(Compare(tcase.abits, tcase.bbits), tcase.cmp)
 			})
 		}
 	})
@@ -176,6 +176,8 @@ func TestEncodeDecode(t *testing.T) {
 		h.Equal(err, ioerr)
 		err = Decode(io.NopCloser(strings.NewReader("foobar")), vintd)
 		h.Equal(err, ErrorReaderIsNotDecodable)
+		err = Decode(Encode(vint), nil)
+		h.Equal(err, ErrorVarIntIsInvalid)
 	})
 }
 

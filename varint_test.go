@@ -42,74 +42,98 @@ func TestVarIntOperations(t *testing.T) {
 	const len = 10
 	test("Common", t, func(th h) {
 		table := map[string]struct {
+			vint VarInt
 			i    int
 			bits Bits
 			err  error
 		}{
+			"common operations should return invalid varint error": {
+				vint: nil,
+				i:    1,
+				bits: NewBits(len, nil),
+				err:  ErrorVarIntIsInvalid,
+			},
 			"common operations should return negative index error": {
+				vint: th.NewVarInt(len, len),
 				i:    -1,
 				bits: NewBits(len, nil),
 				err:  ErrorIndexIsNegative,
 			},
 			"common operations should return index is out of range error": {
+				vint: th.NewVarInt(len, len),
 				i:    2 * len,
 				bits: NewBits(len, nil),
 				err:  ErrorIndexIsOutOfRange,
 			},
 			"common operations should return bit len cardinarity error": {
+				vint: th.NewVarInt(len, len),
 				i:    1,
 				bits: NewBits(2*len, nil),
 				err:  ErrorUnequalBitLengthCardinality,
 			},
 			"common operations should return a valid result for empty bits on valid index": {
+				vint: th.NewVarInt(len, len),
 				i:    1,
 				bits: NewBits(len, []uint{1}),
 			},
 		}
 		for tname, tcase := range table {
 			test(tname, th.T, func(h h) {
-				vint := h.NewVarInt(len, len)
-				h.VarIntSet(1, NewBits(len, []uint{len}))
-				h.Equal(vint.Get(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Set(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.GetSet(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Add(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Sub(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Mul(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Div(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Mod(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.And(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Or(tcase.i, tcase.bits), tcase.err)
-				h.Equal(vint.Xor(tcase.i, tcase.bits), tcase.err)
+				h.VarInt = tcase.vint
+				if h.VarInt != nil {
+					h.VarIntSet(1, NewBits(len, []uint{len}))
+				}
+				h.Equal(h.VarInt.Get(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Set(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.GetSet(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Add(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Sub(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Mul(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Div(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Mod(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.And(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Or(tcase.i, tcase.bits), tcase.err)
+				h.Equal(h.VarInt.Xor(tcase.i, tcase.bits), tcase.err)
 				if tcase.err != ErrorUnequalBitLengthCardinality {
-					h.Equal(vint.Not(tcase.i), tcase.err)
+					h.Equal(h.VarInt.Not(tcase.i), tcase.err)
 				}
 			})
 		}
 	})
 	test("Shifts", t, func(th h) {
 		table := map[string]struct {
-			i   int
-			n   int
-			err error
+			vint VarInt
+			i    int
+			n    int
+			err  error
 		}{
+			"common operations should return invalid varint error": {
+				vint: nil,
+				i:    1,
+				n:    1,
+				err:  ErrorVarIntIsInvalid,
+			},
 			"shift operations should return negative index error": {
-				i:   -1,
-				n:   1,
-				err: ErrorIndexIsNegative,
+				vint: th.NewVarInt(len, len),
+				i:    -1,
+				n:    1,
+				err:  ErrorIndexIsNegative,
 			},
 			"shift operations should return index is out of range error": {
-				i:   2 * len,
-				n:   1,
-				err: ErrorIndexIsOutOfRange,
+				vint: th.NewVarInt(len, len),
+				i:    2 * len,
+				n:    1,
+				err:  ErrorIndexIsOutOfRange,
 			},
 		}
 		for tname, tcase := range table {
 			test(tname, th.T, func(h h) {
-				vint := h.NewVarInt(len, len)
-				h.VarIntSet(1, NewBits(len, []uint{len}))
-				h.Equal(vint.Rsh(tcase.i, tcase.n), tcase.err)
-				h.Equal(vint.Lsh(tcase.i, tcase.n), tcase.err)
+				h.VarInt = tcase.vint
+				if h.VarInt != nil {
+					h.VarIntSet(1, NewBits(len, []uint{len}))
+				}
+				h.Equal(h.VarInt.Rsh(tcase.i, tcase.n), tcase.err)
+				h.Equal(h.VarInt.Lsh(tcase.i, tcase.n), tcase.err)
 			})
 		}
 	})
@@ -239,7 +263,7 @@ func FuzzVarIntSub(f *testing.F) {
 		h.VarIntSet(1, b1)
 		h.VarIntSet(0, b1)
 		h.VarIntSet(2, b1)
-		// Substract the bits.
+		// Subtract the bits.
 		// Allow underflow error, but don't check bit equality then.
 		if !h.NoError(vint.Sub(1, b2), ErrorSubtractionUnderflow) {
 			h.VarIntEqual(1, bsub)

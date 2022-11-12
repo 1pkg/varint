@@ -68,6 +68,7 @@ func (h h) NewBits2B62(b62 string) (Bits, Bits) {
 	}
 	rb62s := string(rb62)
 	var b1, b2 Bits
+	// It should always return greater value first.
 	if strings.Compare(b62, rb62s) < 0 {
 		b1, b2 = h.NewBitsB62(rb62s), h.NewBitsB62(b62)
 	} else {
@@ -106,19 +107,17 @@ func (h h) VarIntSet(i int, b Bits) {
 func (h h) VarIntEqual(i int, bits Bits) {
 	h.Helper()
 	b := h.VarIntGet(i)
-	if Compare(b, bits) == 0 {
-		return
+	if Compare(b, bits) != 0 {
+		h.Fatalf("bits %s are not equal %s", bits.String(), b.String())
 	}
-	h.Fatalf("bits %s are not equal %s", bits.String(), b.String())
 }
 
 func (h h) VarIntNotEqual(i int, bits Bits) {
 	h.Helper()
 	b := h.VarIntGet(i)
-	if Compare(b, bits) != 0 {
-		return
+	if Compare(b, bits) == 0 {
+		h.Fatalf("bits %s are equal %s", bits.String(), b.String())
 	}
-	h.Fatalf("bits %s are equal %s", bits.String(), b.String())
 }
 
 func (h h) NoError(err error, exceptions ...error) bool {

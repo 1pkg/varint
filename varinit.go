@@ -32,6 +32,10 @@ func NewVarInt(blen, len int) (VarInt, error) {
 }
 
 func (vint VarInt) Get(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -80,6 +84,10 @@ func (vint VarInt) Get(i int, bits Bits) error {
 }
 
 func (vint VarInt) Set(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -135,6 +143,10 @@ func (vint VarInt) Set(i int, bits Bits) error {
 }
 
 func (vint VarInt) GetSet(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -196,6 +208,10 @@ func (vint VarInt) GetSet(i int, bits Bits) error {
 }
 
 func (vint VarInt) Add(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -281,6 +297,10 @@ func (vint VarInt) Add(i int, bits Bits) error {
 }
 
 func (vint VarInt) Sub(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -357,6 +377,10 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 }
 
 func (vint VarInt) Mul(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -444,6 +468,10 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 }
 
 func (vint VarInt) Div(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -459,27 +487,7 @@ func (vint VarInt) Div(i int, bits Bits) error {
 	if bits.Empty() {
 		return ErrorDivisionByZero
 	}
-	// Sub-block to compare divisor and divident using bits var.
-	var cmp int
-	{
-		bvar := bvar(vint, true)
-		_ = vint.Get(i, bvar)
-		cmp = Compare(bvar, bits)
-	}
-	// Handle common cases early, in case
-	// divisior is equal to divident - quotient = 1 and reminder = 0
-	// divisior is greater than divident - quotient = 0 and reminder = divident.
 	bvar := bvar(vint, true)
-	switch cmp {
-	case 0:
-		bvar[1] = 1
-		_ = vint.Set(i, bvar)
-		bvar[1] = 0
-		return nil
-	case -1:
-		_ = vint.GetSet(i, bvar)
-		return nil
-	}
 	// Calculate starting and ending bit with
 	// starting and ending index inside vint respectively.
 	bfrom, bto := blen*i+wsize*2, blen*(i+1)-1+wsize*2
@@ -532,6 +540,10 @@ func (vint VarInt) Mod(i int, bits Bits) error {
 }
 
 func (vint VarInt) Not(i int) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -582,6 +594,10 @@ func (vint VarInt) Not(i int) error {
 }
 
 func (vint VarInt) And(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -637,6 +653,10 @@ func (vint VarInt) And(i int, bits Bits) error {
 }
 
 func (vint VarInt) Or(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -692,6 +712,10 @@ func (vint VarInt) Or(i int, bits Bits) error {
 }
 
 func (vint VarInt) Xor(i int, bits Bits) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -747,6 +771,10 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 }
 
 func (vint VarInt) Rsh(i, n int) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative
@@ -818,6 +846,10 @@ loop:
 }
 
 func (vint VarInt) Lsh(i, n int) error {
+	// Check explicitly for invalid number.
+	if vint == nil {
+		return ErrorVarIntIsInvalid
+	}
 	// Check that non negative index was provided.
 	if i < 0 {
 		return ErrorIndexIsNegative

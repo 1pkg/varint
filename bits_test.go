@@ -206,7 +206,7 @@ func TestBits(t *testing.T) {
 			h.Equal(tcase.n, tcase.bits.Uint())
 			h.Equal(tcase.big, tcase.bits.BigInt())
 			h.Equal(tcase.s, tcase.bits.String())
-			h.Equal(tcase.bs, string(tcase.bits.Base(tcase.base)))
+			h.Equal(tcase.bs, string(tcase.bits.To(tcase.base)))
 		})
 	}
 }
@@ -235,6 +235,6 @@ func FuzzBitsFmt(f *testing.F) {
 		h.Equal(fmt.Sprintf("%100O", bits), fmt.Sprintf("%100O", b))
 		h.Equal(fmt.Sprintf("%010x", bits), fmt.Sprintf("%010x", b))
 		h.Equal(bits.String(), fmt.Sprintf("[%d]{%#X}", b.BitLen(), b))
-		h.Equal(bits, NewBitsString(string(bits.Base(base)), base))
+		h.Equal(bits, NewBitsString(string(bits.To(base)), base))
 	})
 }

@@ -10,10 +10,23 @@ import (
 	"strings"
 )
 
+// b62digits const preallocated alphabet.
 const b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// Bits is immutable intermediate representation for single number inside VarInt.
+// It's used as data transfer object for most of VarInt operations, and
+// provides a number of convenient methods to convert it back and forth
+// between other numerical presentations. Bits type somewhat resembles
+// unsigned big.Int internally and provides similar transformations.
+// However, note that by design most of Bits operations are not fast and allocate memory
+// therefore should be only used to bootstrap and pass data to VarIant and not as standalone type.
 type Bits []uint
 
+// NewBits allocates and returns new Bits instance with predefined bit length
+// and optional initialization value bytes slice. In case value bytes slice
+// doesn't fit into the provided bit length, it is truncated to fit into the provided bit len.
+// In case the provided bit len is negative number, actual bit len is calculated from the bytes slice.
+// In case the provided bit len is 0, empty Bits marker is returned.
 func NewBits(blen int, bytes []uint) Bits {
 	if blen == 0 {
 		return []uint{0}
@@ -23,7 +36,7 @@ func NewBits(blen int, bytes []uint) Bits {
 	// Calculate delta shift is not zero convert it to
 	// shift number to truncate original bits.
 	words, bdelta := blen/wsize+(blen%wsize+wsize-1)/wsize, wsize-blen%wsize
-	// Calculate min bits size to hold provided bits slice.
+	// Calculate min bits size to hold the provided bits slice.
 	var minblen int
 	if lb := len(bytes) - 1; lb > -1 {
 		for ; lb > 0; lb-- {
@@ -40,7 +53,7 @@ func NewBits(blen int, bytes []uint) Bits {
 		blen = minblen
 		// Recalculate words number accordingly to new bits len.
 		words = blen/wsize + (blen%wsize+wsize-1)/wsize
-	// Truncate original bits to provided size.
+	// Truncate original bits to the provided len.
 	case blen < minblen:
 		bytes = bytes[:words]
 		// If delta shift is equal to word,
@@ -55,19 +68,25 @@ func NewBits(blen int, bytes []uint) Bits {
 	return b
 }
 
+// NewBitsUint allocates and returns new Bits instance with
+// deduced bit length to exactly fit the provided number.
 func NewBitsUint(n uint) Bits {
 	return NewBits(-1, []uint{n})
 }
 
+// NewBitsBits allocates, copies and returns new Bits instance
+// from the provided Bits, effectively making a deep copy of it.
 func NewBitsBits(bits Bits) Bits {
 	return NewBits(bits.BitLen(), bits.Bytes())
 }
 
+// NewBitsRand allocates and returns new Bits instance filled with
+// random bytes from provided Rand that fits the provided bit length.
 func NewBitsRand(blen int, rnd *rand.Rand) Bits {
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
 	words := blen/wsize + (blen%wsize+wsize-1)/wsize
-	// Generate enough random bits.
+	// Generate enough random bytes.
 	bytes := make([]uint, 0, words)
 	for i := 0; i < words; i++ {
 		bytes = append(bytes, uint(rnd.Int()))
@@ -75,6 +94,9 @@ func NewBitsRand(blen int, rnd *rand.Rand) Bits {
 	return NewBits(blen, bytes)
 }
 
+// NewBitsBigInt allocates, copies and returns new Bits instance
+// from the provided big.Int, it deduces bit length to exactly fit
+// the provided number. In case nil is provided empty Bits marker is returned.
 func NewBitsBigInt(i *big.Int) Bits {
 	if i == nil {
 		return NewBitsUint(0)
@@ -87,6 +109,12 @@ func NewBitsBigInt(i *big.Int) Bits {
 	return NewBits(i.BitLen(), bytes)
 }
 
+// NewBitsString parses, allocates and returns new Bits instance
+// from the provided string and base, it deduces bit length to exactly fit
+// the provided number. Valid base values are inside [2, 62], base values below 2 are
+// converted to 2, base values above 62 are converted to 62. Leading plus '+' sings are ignored.
+// Separating underscore '_' signs are allowed and also ignored. In case empty or invalid
+// string is provided a special nil Bits marker is returned. The implementation follows big.Int.
 func NewBitsString(s string, base int) Bits {
 	// Fix unsuported bases to closest supported.
 	const minb, maxb = 2, 62
@@ -139,10 +167,10 @@ loop:
 				w = uint(ch - 'A' + 36)
 			}
 		default:
-			// In case any unsuported char yeild empty bits.
+			// In case any unsuported char yield empty bits.
 			return nil
 		}
-		// If a char is larger than provided base yeild empty bits.
+		// If a char is larger than provided base yield empty bits.
 		if int(w) > base {
 			return nil
 		}
@@ -179,6 +207,8 @@ loop:
 	return NewBits(-1, bbmax.Bytes())
 }
 
+// BitLen returns bit length of the Bits instance.
+// It's safe to use on nil Bits, 0 is returned.
 func (bits Bits) BitLen() int {
 	if bits == nil {
 		return 0
@@ -186,6 +216,8 @@ func (bits Bits) BitLen() int {
 	return int(bits[0])
 }
 
+// Bytes returns value bytes slice of the Bits instance.
+// It's safe to use on nil Bits, {0} is returned.
 func (bits Bits) Bytes() []uint {
 	if bits.BitLen() == 0 {
 		return []uint{0}
@@ -193,6 +225,8 @@ func (bits Bits) Bytes() []uint {
 	return bits[1:]
 }
 
+// Empty returns true on nil Bits, or if the bit length is 0
+// or if value bytes slice is empty, otherwise returns false.
 func (bits Bits) Empty() bool {
 	if bits == nil {
 		return true
@@ -208,6 +242,8 @@ func (bits Bits) Empty() bool {
 	return true
 }
 
+// Uint returns the low word from value bytes slice of the Bits instance.
+// It's safe to use on nil Bits, 0 is returned.
 func (bits Bits) Uint() uint {
 	if bits.BitLen() == 0 {
 		return 0
@@ -215,6 +251,8 @@ func (bits Bits) Uint() uint {
 	return bits[1]
 }
 
+// BigInt allocates and returns a big.Int from value bytes slice of the Bits instance.
+// It's safe to use on nil Bits, 0 is returned.
 func (bits Bits) BigInt() *big.Int {
 	i := big.NewInt(0)
 	if bits.BitLen() == 0 {
@@ -228,10 +266,18 @@ func (bits Bits) BigInt() *big.Int {
 	return i.SetBits(words)
 }
 
+// String returns a hex '%#X' string representation of the Bits instance
+// decorated with bit length, in format '[blen]{hex_bytes}'.
+// It's safe to use on nil Bits, [0]{0x0} is returned. Implements fmt.Stringer.
 func (bits Bits) String() string {
 	return fmt.Sprintf("[%d]{%#X}", bits.BitLen(), bits)
 }
 
+// Format formats the Bits instance accordingly to provided format,
+// most numeric formats are supported as well as #, 0 flags and pad width flag.
+// In case invalid format is provided nothing is returned.
+// It's safe to use on nil Bits, empty value is returned.
+// Implements fmt.Formatter. The implementation follows big.Int.
 func (bits Bits) Format(f fmt.State, verb rune) {
 	// Start with parsing preferred base and prefix.
 	var base int
@@ -253,12 +299,10 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 		fallthrough
 	case 'x':
 		base = 16
-	// Use default case as catch all to
-	// print extra debug bit len information.
 	default:
 		return
 	}
-	b := bits.Base(base)
+	b := bits.To(base)
 	if f.Flag('#') {
 		switch verb {
 		case 'b':
@@ -298,7 +342,11 @@ func (bits Bits) Format(f fmt.State, verb rune) {
 	_, _ = f.Write(b)
 }
 
-func (bits Bits) Base(base int) []byte {
+// To allocates and returns []byte representation of the Bits instance
+// using the provided base. Valid base values are inside [2, 62], base values below
+// 2 are converted to 2, base values above 62 are converted to 62.
+// It's safe to use on nil Bits, {'0'} is returned. The implementation follows big.Int.
+func (bits Bits) To(base int) []byte {
 	// Fix unsuported bases to closest supported.
 	const minb, maxb = 2, 62
 	switch {

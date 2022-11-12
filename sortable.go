@@ -1,5 +1,8 @@
 package varint
 
+// sortable implements sort.Interface on top of VarInt.
+// VarInt doesn't implement sort.Interface directly by choice
+// to make it more consistent and ergonomic.
 type sortable struct {
 	vint VarInt
 	bits Bits
