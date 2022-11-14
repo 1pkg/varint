@@ -511,7 +511,7 @@ func FuzzVarIntLsh(f *testing.F) {
 
 func BenchmarkVarIntOperations(b *testing.B) {
 	bench("Benchmark Arithmetic", b, func(b *testing.B) {
-		bench("Tiny Numbers", b, func(b *testing.B) {
+		bench("Tiny Integers", b, func(b *testing.B) {
 			const len, blen = 100000000, 4
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -543,7 +543,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Word 64 Bits Numbers", b, func(b *testing.B) {
+		bench("Word 64 Bits Integers", b, func(b *testing.B) {
 			const len, blen = 10000000, 64
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -575,7 +575,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Medium Large Numbers", b, func(b *testing.B) {
+		bench("Medium Large Integers", b, func(b *testing.B) {
 			const len, blen = 10000000, 100
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -611,7 +611,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Big Large Numbers", b, func(b *testing.B) {
+		bench("Big Large Integers", b, func(b *testing.B) {
 			const len, blen = 100000, 10000
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -649,7 +649,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 		})
 	})
 	bench("Benchmark Binary Operations", b, func(b *testing.B) {
-		bench("Tiny Numbers", b, func(b *testing.B) {
+		bench("Tiny Integers", b, func(b *testing.B) {
 			const len, blen = 100000000, 4
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -677,7 +677,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Word 64 Bits Numbers", b, func(b *testing.B) {
+		bench("Word 64 Bits Integers", b, func(b *testing.B) {
 			const len, blen = 10000000, 64
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -705,7 +705,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Medium Large Numbers", b, func(b *testing.B) {
+		bench("Medium Large Integers", b, func(b *testing.B) {
 			const len, blen = 10000000, 100
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
@@ -737,7 +737,7 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Big Large Numbers", b, func(b *testing.B) {
+		bench("Big Large Integers", b, func(b *testing.B) {
 			const len, blen = 100000, 10000
 			bench("VarInt Operations", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)

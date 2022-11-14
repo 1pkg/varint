@@ -13,7 +13,7 @@ import (
 // b62digits const preallocated alphabet.
 const b62digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-// Bits is immutable intermediate representation for single number inside VarInt.
+// Bits is immutable intermediate representation for single integer inside VarInt.
 // It's used as data transfer object for most of VarInt operations, and
 // provides a number of convenient methods to convert it back and forth
 // between other numerical presentations. Bits type somewhat resembles

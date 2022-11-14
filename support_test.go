@@ -115,13 +115,13 @@ func TestSortable(t *testing.T) {
 		sort.Sort(Sortable(vint))
 		for i, j := 0, 1; i < len-1; i, j = i+1, j+1 {
 			bi, bj := h.VarIntGet(i), h.VarIntGet(j)
-			// Numbers could be equal too.
+			// Integers could be equal too.
 			h.Equal(Compare(bi, bj) <= 0, true)
 		}
 		sort.Sort(sort.Reverse(Sortable(vint)))
 		for i, j := 0, 1; i < len-1; i, j = i+1, j+1 {
 			bi, bj := h.VarIntGet(i), h.VarIntGet(j)
-			// Numbers could be equal too.
+			// Integers could be equal too.
 			h.Equal(Compare(bi, bj) >= 0, true)
 		}
 	})
