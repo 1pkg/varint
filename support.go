@@ -9,7 +9,7 @@ import (
 // bvar internal accessor that returns reserved Bits variable.
 // The Bits variable is collocated on VarInt itself, so bvar
 // doesn't allocate any new memory. The reserved Bits variable
-// is appended to the end of any VarInt and used for many operations
+// is appended to the end of any VarInt and used internally for many operations
 // as a compuatation temporary buffer, including: Mul, Div, Mod, Sort.
 // bvar is standalone function by choice to make VarInt more consistent and ergonomic.
 func bvar(vint VarInt, empty bool) Bits {
@@ -61,22 +61,24 @@ func Sortable(vint VarInt) sort.Interface {
 // a goroutine to encode the number lazily, so the returned io.ReadCloser
 // has to be always closed otherwise goroutine leak occures.
 func Encode(vint VarInt) io.ReadCloser {
-	const buflen, uisize = 1024, wsize / 8
+	const bzise = 8
 	r, w := io.Pipe()
 	go func() {
-		for i, l := 0, len(vint); i < l; i += buflen {
-			to := i + buflen
-			if to > l-1 {
-				to = l - 1
+		for i, l, d, u := 0, len(vint)-1, wsize*wsize, wsize/bzise; i <= l; i += d {
+			// Round to max len for the last batch.
+			to := i + d
+			if to > l {
+				to = l
 			}
 			chunk := vint[i:to]
-			bytes := make([]byte, len(chunk)*uisize)
+			bytes := make([]byte, len(chunk)*u)
+			// Use system word byte size when encoding.
 			for i, n := range chunk {
-				switch uisize {
-				case 8:
-					binary.BigEndian.PutUint64(bytes[i*uisize:], uint64(n))
-				case 4:
-					binary.BigEndian.PutUint32(bytes[i*uisize:], uint32(n))
+				switch wsize {
+				case 64:
+					binary.BigEndian.PutUint64(bytes[i*u:], uint64(n))
+				case 32:
+					binary.BigEndian.PutUint32(bytes[i*u:], uint32(n))
 				}
 			}
 			if _, err := w.Write(bytes); err != nil {
@@ -93,9 +95,9 @@ func Encode(vint VarInt) io.ReadCloser {
 // is returned. The provided io.ReadCloser has to be encoded with binary.BigEndian iside,
 // otherwise the ErrorReaderIsNotDecodable is returned.
 func Decode(r io.ReadCloser, vint VarInt) error {
-	const buflen, uisize = 1024, wsize / 8
-	bytes, bits := make([]byte, buflen*uisize), make([]uint, buflen)
-	for l, vi := len(vint), 0; ; {
+	const bzise = 8
+	bytes := make([]byte, wsize*wsize)
+	for k, l, u := 0, len(vint), wsize/bzise; ; {
 		n, err := r.Read(bytes)
 		switch {
 		case err == io.EOF:
@@ -103,24 +105,24 @@ func Decode(r io.ReadCloser, vint VarInt) error {
 		case err != nil:
 			return err
 		// Check that size of byte sequence is legit.
-		case n%uisize != 0:
+		case n%u != 0:
 			return ErrorReaderIsNotDecodable
 		}
-		bytes, bits = bytes[:n], bits[:n/uisize]
-		for i := range bits {
-			switch uisize {
-			case 8:
-				bits[i] = uint(binary.BigEndian.Uint64(bytes[i*uisize:]))
-			case 4:
-				bits[i] = uint(binary.BigEndian.Uint32(bytes[i*uisize:]))
-			}
-		}
-		nvi := vi + len(bits)
-		if nvi > l {
+		bytes = bytes[:n]
+		// Check if vint fits the read bytes.
+		if k+n/u >= l {
 			return ErrorVarIntIsInvalid
 		}
-		copy(vint[vi:], bits)
-		vi = nvi
+		// Use system word byte size when decoding.
+		for i := 0; i < n/u; i++ {
+			switch wsize {
+			case 64:
+				vint[k] = uint(binary.BigEndian.Uint64(bytes[i*u:]))
+			case 32:
+				vint[k] = uint(binary.BigEndian.Uint32(bytes[i*u:]))
+			}
+			k++
+		}
 	}
 }
 

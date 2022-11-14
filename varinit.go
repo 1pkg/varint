@@ -2,10 +2,53 @@ package varint
 
 import math_bits "math/bits"
 
+// wsize const alias to system uint word size in bits.
 const wsize = math_bits.UintSize
 
+// VarInt defines the memory efficient unsigned numeric array type that provides
+// basic arithmetic and bitwise operations on variadic bit length numbers. The purpose
+// of VarInt to provide the memory optimal way to use unsigned custom bit len numbers.
+// It does so by storing all the numbers adjacent to each other inside
+// continuous numeric bytes slice. To function, it allocates the underlying
+// numeric bytes slice only once on creation and doesn't expect to allocate
+// any more new memory for any of its operations thereafter. To apply any
+// of its operations, some bits manipulations are required which implies
+// some computational overhead. Thus providing a tradeoff between CPU time and memeory.
+// Overhead grows lineraly proportionally to bit len and comparable with overhead
+// provided by big.Int type operations. Unlike big.Int however, VarInt uses exact number
+// of bits to store the numbers inside. Which makes VarInt extremely memory efficient. For example,
+// to store a slice of 100 number 100 bit each, big.Int requires 12400 bits while
+// VarInt needs exactly 10000 bits (excluding fixed internal overhead).
+// In the same way VarInt also provides the efficient way to store numbers smaller than 64 bits.
+// For example, to store a slice of 1000 number 2 bit each, []uin8 requires 8000 bits
+// while VarInt needs exactly 2000 bits (excluding fixed internal overhead).
+// Note however, that VarInt is no way close to be optimized as well as big.Int, and
+// provides a diminishing returns as bit length grows above certain threshold. Currently,
+// in a conscious decision multiple operations implemented in favor of simplicity and
+// not computational complexity, this includes Mul that uses standard long multiplication
+// instead of fast multiplication algorithms like Karatsuba multiplication, and Div that
+// uses standard slow division instead of fast division algorithms. The main rationale behind
+// the choice is the fact that VarInt has the most efficiency when used for small and medium size numbers
+// in the range of 1 to 5000 bits, therefore asymptotic complexity should have less of impact.
+// VarInt carries a small fixed overhead internaly, it allocates 2 separate uint cells at the beginning
+// of the numeric bytes slice to store length and bit length somewhere. It also collocates extra Bits
+// variable at the end of numeric bytes slice which is used internally for many operations as
+// a compuatation temporary buffer, including: Mul, Div, Mod, Sort. Currently, for simplicity and consistency
+// most VarInt operations apply changes in place on the provided index and require the provided Bits to have
+// exactly the same bit len, otherwise ErrorUnequalBitLengthCardinality is returned. Currently, VarInt
+// provides only unsigned arithmetic. It heavily uses Bits data transfer type to carry the data between
+// API boundaries, see Bits for more details.
 type VarInt []uint
 
+// NewVarInt allocates and returns VarInt instance that is capable to
+// fit the provided len number of items each of the provided bit len in size.
+// In case the provided bit len is not positive, invalid number and ErrorBitLengthIsNotPositive is returned.
+// In case the len is not positive, invalid number and ErrorLengthIsNotPositive is returned.
+// In case the provided bit len is larger than predefined threshold of 4096,
+// valid VarInt is still returned along with ErrorBitLengthIsNotEfficient warning.
+// In case the provided len is smaller than predefined threshold of 4,
+// valid VarInt is still returned along with ErrorLengthIsNotEfficient warning.
+// See VarInt type for more details.
 func NewVarInt(blen, len int) (VarInt, error) {
 	if blen <= 0 {
 		return nil, ErrorBitLengthIsNotPositive
@@ -28,9 +71,26 @@ func NewVarInt(blen, len int) (VarInt, error) {
 	// that require extra temp buffer like
 	// multiplication, division or sorting.
 	vint[cap] = uint(blen)
-	return vint, nil
+	// Lastly, check for len thresholds, in case the
+	// thresholds are violated still return a valid
+	// number but also return the warning along with it.
+	const bzise = 4
+	switch {
+	case blen > wsize*wsize:
+		return vint, ErrorBitLengthIsNotEfficient
+	case len < bzise:
+		return vint, ErrorLengthIsNotEfficient
+	default:
+		return vint, nil
+	}
 }
 
+// Get sets the provided bits to the number inside VarInt at the provided index.
+// It never allocates new Bits, the provided Bits are expected to be preallocated by the caller.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
 func (vint VarInt) Get(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -83,6 +143,11 @@ func (vint VarInt) Get(i int, bits Bits) error {
 	return nil
 }
 
+// Set sets the provided bits into the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
 func (vint VarInt) Set(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -142,6 +207,11 @@ func (vint VarInt) Set(i int, bits Bits) error {
 	return nil
 }
 
+// GetSet swaps the provided bits with the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
 func (vint VarInt) GetSet(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -207,6 +277,13 @@ func (vint VarInt) GetSet(i int, bits Bits) error {
 	return nil
 }
 
+// Add adds the provided bits to the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
+// In case the addition result overflows the bit len, the regular unsigned semantic applies and
+// extra ErrorAdditionOverflow warning is returned.
 func (vint VarInt) Add(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -296,6 +373,13 @@ func (vint VarInt) Add(i int, bits Bits) error {
 	return nil
 }
 
+// Sub subtracts the provided bits from the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
+// In case the subtraction result underflows the number, the regular unsigned semantic applies and
+// extra ErrorSubtractionUnderflow warning is returned.
 func (vint VarInt) Sub(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -376,6 +460,13 @@ func (vint VarInt) Sub(i int, bits Bits) error {
 	return nil
 }
 
+// Mul multiplies the provided bits with the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
+// In case the multiplication result overflows the bit len, the number is trucated and
+// extra ErrorMultiplicationOverflow warning is returned.
 func (vint VarInt) Mul(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -467,6 +558,12 @@ func (vint VarInt) Mul(i int, bits Bits) error {
 	return nil
 }
 
+// Div divides the provided bits with the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
+// In case the division by zero is attempted, ErrorDivisionByZero is returned
 func (vint VarInt) Div(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -525,6 +622,12 @@ func (vint VarInt) Div(i int, bits Bits) error {
 	return nil
 }
 
+// Mod applies modulo operation to the provided bits and the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
+// In case the division by zero is attempted, ErrorDivisionByZero is returned
 func (vint VarInt) Mod(i int, bits Bits) error {
 	// For modulo we can just use the fact that
 	// in division operation the reminder is left
@@ -539,6 +642,10 @@ func (vint VarInt) Mod(i int, bits Bits) error {
 	return nil
 }
 
+// Not applies bitwise negation ^ operation to the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
 func (vint VarInt) Not(i int) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -593,6 +700,11 @@ func (vint VarInt) Not(i int) error {
 	return nil
 }
 
+// And applies bitwise and & operation to the provided bits and the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
 func (vint VarInt) And(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -652,6 +764,11 @@ func (vint VarInt) And(i int, bits Bits) error {
 	return nil
 }
 
+// Or applies bitwise and | operation to the provided bits and the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
 func (vint VarInt) Or(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -711,6 +828,11 @@ func (vint VarInt) Or(i int, bits Bits) error {
 	return nil
 }
 
+// Xor applies bitwise and ^ operation to the provided bits and the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
+// In case the provided bits has different bit len, ErrorUnequalBitLengthCardinality is returned.
 func (vint VarInt) Xor(i int, bits Bits) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
@@ -770,10 +892,19 @@ func (vint VarInt) Xor(i int, bits Bits) error {
 	return nil
 }
 
+// Rsh applies right shift >> operation to the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative shift is provided, ErrorShiftIsNegative is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
 func (vint VarInt) Rsh(i, n int) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
 		return ErrorVarIntIsInvalid
+	}
+	// Check that valid shift is provided.
+	if n < 0 {
+		return ErrorShiftIsNegative
 	}
 	// Check that non negative index was provided.
 	if i < 0 {
@@ -845,10 +976,19 @@ loop:
 	return nil
 }
 
+// Lsh applies left shift << operation to the number inside VarInt at the provided index.
+// In case the operation is used on invalid nil VarInt, ErrorVarIntIsInvalid is returned.
+// In case negative shift is provided, ErrorShiftIsNegative is returned.
+// In case negative index is provided, ErrorIndexIsNegative is returned.
+// In case the provided index is greater than len of VarInt, ErrorIndexIsOutOfRange is returned.
 func (vint VarInt) Lsh(i, n int) error {
 	// Check explicitly for invalid number.
 	if vint == nil {
 		return ErrorVarIntIsInvalid
+	}
+	// Check that valid shift is provided.
+	if n < 0 {
+		return ErrorShiftIsNegative
 	}
 	// Check that non negative index was provided.
 	if i < 0 {

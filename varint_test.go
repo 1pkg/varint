@@ -27,13 +27,24 @@ func TestVarIntNew(t *testing.T) {
 			len:  5,
 			vint: VarInt{5, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 120, 0, 0},
 		},
+		"large bits len should resolve in valid vint but warning": {
+			blen: 5000,
+			len:  1,
+			err:  ErrorBitLengthIsNotEfficient,
+			vint: VarInt{1, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		},
+		"small len should resolve in valid vint but warning": {
+			blen: 10,
+			len:  3,
+			err:  ErrorLengthIsNotEfficient,
+			vint: VarInt{3, 10, 0, 10, 0},
+		},
 	}
 	for tname, tcase := range table {
 		test(tname, t, func(h h) {
 			vint, err := NewVarInt(tcase.blen, tcase.len)
-			if !h.NoError(tcase.err, err) {
-				h.Equal(tcase.vint, vint)
-			}
+			h.NoError(tcase.err, err)
+			h.Equal(tcase.vint, vint)
 		})
 	}
 }
@@ -107,11 +118,17 @@ func TestVarIntOperations(t *testing.T) {
 			n    int
 			err  error
 		}{
-			"common operations should return invalid varint error": {
+			"shift operations should return invalid varint error": {
 				vint: nil,
 				i:    1,
 				n:    1,
 				err:  ErrorVarIntIsInvalid,
+			},
+			"shift operations should return negative shift error": {
+				vint: th.NewVarInt(len, len),
+				i:    1,
+				n:    -1,
+				err:  ErrorShiftIsNegative,
 			},
 			"shift operations should return negative index error": {
 				vint: th.NewVarInt(len, len),
@@ -137,7 +154,7 @@ func TestVarIntOperations(t *testing.T) {
 			})
 		}
 	})
-	test("Math", t, func(th h) {
+	test("Arithmetic", t, func(th h) {
 		vint := th.NewVarInt(len, len)
 		table := map[string]struct {
 			op   func(i int, bits Bits) error
@@ -309,17 +326,17 @@ func FuzzVarIntDiv(f *testing.F) {
 		// from them, calculate bit ints div and compare to
 		// calculated div with bits quotient.
 		b1, b2 := h.NewBits2B62(b62)
-		if b2.Empty() {
-			h.Skip()
+		bdiv := NewBits(b1.BitLen(), nil)
+		if !b2.Empty() {
+			bdiv = NewBitsBigInt(big.NewInt(1).Div(b1.BigInt(), b2.BigInt()))
+			bdiv = NewBits(b1.BitLen(), bdiv.Bytes())
 		}
-		bdiv := NewBitsBigInt(big.NewInt(1).Div(b1.BigInt(), b2.BigInt()))
-		bdiv = NewBits(b1.BitLen(), bdiv.Bytes())
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(0, b1)
 		h.VarIntSet(1, b1)
 		h.VarIntSet(2, b1)
 		// Divide vint by the bits.
-		if !h.NoError(vint.Div(1, b2)) {
+		if !h.NoError(vint.Div(1, b2), ErrorDivisionByZero) {
 			h.VarIntEqual(1, bdiv)
 		}
 		// Check that others bits were not affected.
@@ -493,7 +510,7 @@ func FuzzVarIntLsh(f *testing.F) {
 }
 
 func BenchmarkVarIntOperations(b *testing.B) {
-	bench("Benchmark Math", b, func(b *testing.B) {
+	bench("Benchmark Arithmetic", b, func(b *testing.B) {
 		bench("Tiny Numbers", b, func(b *testing.B) {
 			const len, blen = 100000000, 4
 			bench("VarInt Operations", b, func(b *testing.B) {
