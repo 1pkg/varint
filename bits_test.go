@@ -67,7 +67,7 @@ func TestBitsNew(t *testing.T) {
 			test(tname, th.T, func(h h) {
 				b := NewBits(tcase.blen, tcase.bytes)
 				bn := NewBitsUint(tcase.n)
-				bb := NewBitsBits(tcase.bits)
+				bb := NewBitsBits(tcase.blen, tcase.bits)
 				bbig := NewBitsBigInt(tcase.big)
 				brnd := NewBitsRand(tcase.blen, rnd)
 				bs := NewBitsString(tcase.s, tcase.base)

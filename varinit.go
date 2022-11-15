@@ -5,39 +5,31 @@ import math_bits "math/bits"
 // wsize const alias to system uint word size in bits.
 const wsize = math_bits.UintSize
 
-// VarInt defines the memory efficient unsigned integer array type that provides
-// basic arithmetic and bitwise operations on arbitrary variadic bit length integers.
-// The purpose of VarInt to provide the memory optimal way to use unsigned custom bit len integers.
-// It does so by storing all the integers adjacent to each other inside
-// continuous numeric bytes slice. To function, it allocates the underlying
-// numeric bytes slice only once on creation and doesn't expect to allocate
-// any more new memory for any of its operations thereafter. To apply any
-// of its operations, some bits manipulations are required which implies
-// some computational overhead. Thus providing a tradeoff between CPU time and memeory.
-// Overhead grows lineraly proportionally to bit len and comparable with overhead
-// provided by big.Int type operations. Unlike big.Int however, VarInt uses exact number
-// of bits to store the integers inside. Which makes VarInt extremely memory efficient. For example,
-// to store a slice of 100 integers 100 bit each, big.Int requires 12400 bits while
-// VarInt needs exactly 10000 bits (excluding fixed internal overhead).
-// In the same way VarInt also provides the efficient way to store integers smaller than 64 bits.
-// For example, to store a slice of 1000 integers 2 bit each, []uin8 requires 8000 bits
-// while VarInt needs exactly 2000 bits (excluding fixed internal overhead).
-// Note however, that VarInt is no way close to be optimized as well as big.Int, and
-// provides diminishing returns as bit length grows above certain threshold. Currently,
-// in a conscious decision multiple operations implemented in favor of simplicity and
-// not computational complexity, this includes Mul that uses standard long multiplication
-// instead of fast multiplication algorithms like Karatsuba multiplication, and Div that
-// uses standard slow division instead of fast division algorithms. The main rationale behind
-// the choice is the fact that VarInt has the most efficiency when used for small and medium size integers
-// in the range of 1 to 5000 bits, therefore asymptotic complexity should have less of impact.
-// VarInt carries a small fixed overhead internaly, it allocates 2 separate uint cells at the beginning
-// of the numeric bytes slice to store length and bit length somewhere. It also collocates extra Bits
-// variable at the end of numeric bytes slice which is used internally for many operations as
-// a compuatation temporary buffer, including: Mul, Div, Mod, Sort. Currently, for simplicity and consistency
-// most VarInt operations apply changes in place on the provided index and require the provided Bits to have
-// exactly the same bit len, otherwise ErrorUnequalBitLengthCardinality is returned. Currently, VarInt
-// provides only unsigned arithmetic. It heavily uses Bits data transfer type to carry the data between
-// API boundaries, see Bits for more details.
+// VarInt provides fast and memory efficient arbitrary bit length unsigned integer array type.
+//
+// The purpose of VarInt to provide the maximum memory compact way to use and store unsigned custom bits integers.
+// It does so by storing all the integers adjacent to each other inside a continuous numeric byte slice.
+// It allocates the underlying numeric bytes slice only once on creation and doesn't expect to allocate any more memory afterwards.
+// VarInt provides all the basic arithmetic and bitwise operations. To apply any of these operations, internal bits manipulations are required
+// which implies certain computational overhead. Thus providing a tradeoff between CPU time and memory.
+// Overhead grows lineraly, proportionally to bit len and is comparable with overhead from big.Int operations.
+// Unlike big.Int however, VarInt uses exact number of bits to store the integers inside. Which makes VarInt extremely memory efficient.
+// For example, to store a slice of 100 integers 100 bit each, big.Int requires 12400 bits, while VarInt needs exactly 10000 bits.
+// In the same fashion VarInt also provides an efficient way to store integers smaller than 64 bits.
+// For example, to store a slice of 1000 integers 2 bit each, []uin8 requires 8000 bits, while VarInt needs exactly 2000 bits.
+// However, note that VarInt is no way close to be optimized as well as big.Int, and provides diminishing returns as bit length grows above certain threshold.
+//
+// Currently, in a conscious decision multiple operations are implemented in favour of simplicity and not computational complexity,
+// this includes Mul that uses standard long multiplication instead of fast multiplication algorithms like Karatsuba multiplication,
+// and Div that uses standard slow division instead of fast division algorithms.
+// The main rationale behind this choice is the fact that VarInt has the most efficiency when used for small and medium size integers
+// in the range of 1 to 5000 bit width, therefore asymptotic complexity should be less significant for this library.
+// Note that VarInt carries a small fixed overhead internaly, it allocates 2 separate uint cells at the beginning of the numeric bytes slice
+// to store length and bit length. It also collocates extra Bits variable at the end of numeric bytes slice which is used internally
+// for many operations as a computation temporary buffer, including: Mul, Div, Mod, Sort.
+// Currently, for simplicity and consistency most VarInt operations apply changes in place on the provided index and require
+// the provided Bits to have exactly the same bit len, otherwise ErrorUnequalBitLengthCardinality is returned.
+// Currently, VarInt provides only unsigned arithmetic.
 type VarInt []uint
 
 // NewVarInt allocates and returns VarInt instance that is capable to

@@ -10,7 +10,7 @@ import (
 // The Bits variable is collocated on VarInt itself, so bvar
 // doesn't allocate any new memory. The reserved Bits variable
 // is appended to the end of any VarInt and used internally for many operations
-// as a compuatation temporary buffer, including: Mul, Div, Mod, Sort.
+// as a computation temporary buffer, including: Mul, Div, Mod, Sort.
 // bvar is standalone function by choice to make VarInt more consistent and ergonomic.
 func bvar(vint VarInt, empty bool) Bits {
 	if vint == nil {

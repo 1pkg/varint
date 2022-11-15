@@ -50,7 +50,7 @@ func bench(bname string, b *testing.B, f func(b *testing.B)) {
 		var after runtime.MemStats
 		runtime.ReadMemStats(&after)
 		m := float64(after.TotalAlloc-before.TotalAlloc) / k / k
-		b.ReportMetric(m, "M_allocated")
+		b.ReportMetric(m, "allocs/MB")
 	})
 }
 
@@ -85,7 +85,7 @@ func (h h) NewBits2B62(b62 string) (Bits, Bits) {
 	} else {
 		b1, b2 = h.NewBitsB62(b62), h.NewBitsB62(rb62s)
 	}
-	return b1, NewBits(b1.BitLen(), b2.Bytes())
+	return b1, NewBitsBits(b1.BitLen(), b2)
 }
 
 func (h *h) NewVarInt(bits, length int) VarInt {

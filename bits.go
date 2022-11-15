@@ -27,6 +27,7 @@ type Bits []uint
 // doesn't fit into the provided bit length, it is truncated to fit into the provided bit len.
 // In case the provided bit len is negative number, actual bit len is calculated from the bytes slice.
 // In case the provided bit len is 0, empty Bits marker is returned.
+// See Bits type for more details.
 func NewBits(blen int, bytes []uint) Bits {
 	if blen == 0 {
 		return []uint{0}
@@ -70,18 +71,21 @@ func NewBits(blen int, bytes []uint) Bits {
 
 // NewBitsUint allocates and returns new Bits instance with
 // deduced bit length to exactly fit the provided number.
+// See Bits type for more details.
 func NewBitsUint(n uint) Bits {
 	return NewBits(-1, []uint{n})
 }
 
 // NewBitsBits allocates, copies and returns new Bits instance
-// from the provided Bits, effectively making a deep copy of it.
-func NewBitsBits(bits Bits) Bits {
-	return NewBits(bits.BitLen(), bits.Bytes())
+// from the provided bit len and Bits, effectively making a deep copy of it.
+// See Bits type for more details.
+func NewBitsBits(blen int, bits Bits) Bits {
+	return NewBits(blen, bits.Bytes())
 }
 
 // NewBitsRand allocates and returns new Bits instance filled with
 // random bytes from provided Rand that fits the provided bit length.
+// See Bits type for more details.
 func NewBitsRand(blen int, rnd *rand.Rand) Bits {
 	// Calculate number of whole words plus
 	// one word if partial mod word is needed.
@@ -97,6 +101,7 @@ func NewBitsRand(blen int, rnd *rand.Rand) Bits {
 // NewBitsBigInt allocates, copies and returns new Bits instance
 // from the provided big.Int, it deduces bit length to exactly fit
 // the provided number. In case nil is provided empty Bits marker is returned.
+// See Bits type for more details.
 func NewBitsBigInt(i *big.Int) Bits {
 	if i == nil {
 		return NewBitsUint(0)
@@ -115,6 +120,7 @@ func NewBitsBigInt(i *big.Int) Bits {
 // converted to 2, base values above 62 are converted to 62. Leading plus '+' sings are ignored.
 // Separating underscore '_' signs are allowed and also ignored. In case empty or invalid
 // string is provided a special nil Bits marker is returned. The implementation follows big.Int.
+// See Bits type for more details.
 func NewBitsString(s string, base int) Bits {
 	// Fix unsuported bases to closest supported.
 	const minb, maxb = 2, 62

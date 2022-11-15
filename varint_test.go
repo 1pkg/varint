@@ -249,7 +249,7 @@ func FuzzVarIntAdd(f *testing.F) {
 		// calculated bits sum.
 		b1, b2 := h.NewBits2B62(b62)
 		bsum := NewBitsBigInt(big.NewInt(0).Add(b1.BigInt(), b2.BigInt()))
-		bsum = NewBits(b1.BitLen(), bsum.Bytes())
+		bsum = NewBitsBits(b1.BitLen(), bsum)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(0, b1)
 		h.VarIntSet(2, b1)
@@ -275,7 +275,7 @@ func FuzzVarIntSub(f *testing.F) {
 		// calculated bits delta.
 		b1, b2 := h.NewBits2B62(b62)
 		bsub := NewBitsBigInt(big.NewInt(0).Sub(b1.BigInt(), b2.BigInt()))
-		bsub = NewBits(b1.BitLen(), bsub.Bytes())
+		bsub = NewBitsBits(b1.BitLen(), bsub)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(1, b1)
 		h.VarIntSet(0, b1)
@@ -301,9 +301,9 @@ func FuzzVarIntMul(f *testing.F) {
 		bmul := NewBitsBigInt(big.NewInt(1).Mul(b1.BigInt(), b2.BigInt()))
 		mblen := b1.BitLen() * 2
 		b1, b2, bmul =
-			NewBits(mblen, b1.Bytes()),
-			NewBits(mblen, b2.Bytes()),
-			NewBits(mblen, bmul.Bytes())
+			NewBitsBits(mblen, b1),
+			NewBitsBits(mblen, b2),
+			NewBitsBits(mblen, bmul)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(0, b1)
 		h.VarIntSet(1, b1)
@@ -329,7 +329,7 @@ func FuzzVarIntDiv(f *testing.F) {
 		bdiv := NewBits(b1.BitLen(), nil)
 		if !b2.Empty() {
 			bdiv = NewBitsBigInt(big.NewInt(1).Div(b1.BigInt(), b2.BigInt()))
-			bdiv = NewBits(b1.BitLen(), bdiv.Bytes())
+			bdiv = NewBitsBits(b1.BitLen(), bdiv)
 		}
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(0, b1)
@@ -356,7 +356,7 @@ func FuzzVarIntMod(f *testing.F) {
 			h.Skip()
 		}
 		bmod := NewBitsBigInt(big.NewInt(1).Mod(b1.BigInt(), b2.BigInt()))
-		bmod = NewBits(b1.BitLen(), bmod.Bytes())
+		bmod = NewBitsBits(b1.BitLen(), bmod)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(0, b1)
 		h.VarIntSet(1, b1)
@@ -403,7 +403,7 @@ func FuzzVarIntAnd(f *testing.F) {
 		// calculated bit and & with bits result.
 		b1, b2 := h.NewBits2B62(b62)
 		band := NewBitsBigInt(big.NewInt(0).And(b1.BigInt(), b2.BigInt()))
-		band = NewBits(b1.BitLen(), band.Bytes())
+		band = NewBitsBits(b1.BitLen(), band)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(1, b1)
 		h.VarIntSet(0, b1)
@@ -425,7 +425,7 @@ func FuzzVarIntOr(f *testing.F) {
 		// calculated bit | or with bits result.
 		b1, b2 := h.NewBits2B62(b62)
 		bor := NewBitsBigInt(big.NewInt(0).Or(b1.BigInt(), b2.BigInt()))
-		bor = NewBits(b1.BitLen(), bor.Bytes())
+		bor = NewBitsBits(b1.BitLen(), bor)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(1, b1)
 		h.VarIntSet(0, b1)
@@ -447,7 +447,7 @@ func FuzzVarIntXor(f *testing.F) {
 		// calculated bit ^ xor with bits result.
 		b1, b2 := h.NewBits2B62(b62)
 		bxor := NewBitsBigInt(big.NewInt(0).Xor(b1.BigInt(), b2.BigInt()))
-		bxor = NewBits(b1.BitLen(), bxor.Bytes())
+		bxor = NewBitsBits(b1.BitLen(), bxor)
 		vint := h.NewVarInt(b1.BitLen(), l)
 		h.VarIntSet(1, b1)
 		h.VarIntSet(0, b1)
@@ -471,7 +471,7 @@ func FuzzVarIntRsh(f *testing.F) {
 		big, n := bits.BigInt(), rnd.Int()%(bits.BitLen()+1)
 		big = big.Rsh(big, uint(n))
 		bsh := NewBitsBigInt(big)
-		bsh = NewBits(bits.BitLen(), bsh.Bytes())
+		bsh = NewBitsBits(bits.BitLen(), bsh)
 		vint := h.NewVarInt(bits.BitLen(), l)
 		h.VarIntSet(1, bits)
 		h.VarIntSet(0, bits)
@@ -495,7 +495,7 @@ func FuzzVarIntLsh(f *testing.F) {
 		big, n := bits.BigInt(), rnd.Int()%(bits.BitLen()+1)
 		big = big.Lsh(big, uint(n))
 		bsh := NewBitsBigInt(big)
-		bsh = NewBits(bits.BitLen(), bsh.Bytes())
+		bsh = NewBitsBits(bits.BitLen(), bsh)
 		vint := h.NewVarInt(bits.BitLen(), l)
 		h.VarIntSet(1, bits)
 		h.VarIntSet(0, bits)
@@ -510,12 +510,13 @@ func FuzzVarIntLsh(f *testing.F) {
 }
 
 func BenchmarkVarIntOperations(b *testing.B) {
-	bench("Benchmark Arithmetic", b, func(b *testing.B) {
-		bench("Tiny Integers", b, func(b *testing.B) {
+	bench("Benchmark Arithmetic Operations", b, func(b *testing.B) {
+		bench("100000000 integers, 4 bits width", b, func(b *testing.B) {
 			const len, blen = 100000000, 4
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{10})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Add(i, bits)
@@ -528,8 +529,9 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Get(i, bits)
 				}
 			})
-			bench("Uint8 Slice Operations", b, func(b *testing.B) {
+			bench("Uint8 Slice", b, func(b *testing.B) {
 				slice := make([]uint8, len)
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					slice[i] += 10
@@ -543,11 +545,12 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Word 64 Bits Integers", b, func(b *testing.B) {
+		bench("10000000 integers, 64 bits width", b, func(b *testing.B) {
 			const len, blen = 10000000, 64
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{1000000000})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Add(i, bits)
@@ -560,8 +563,9 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Get(i, bits)
 				}
 			})
-			bench("Uint64 Slice Operations", b, func(b *testing.B) {
+			bench("Uint64 Slice", b, func(b *testing.B) {
 				slice := make([]uint64, len)
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					slice[i] += 1000000000
@@ -575,11 +579,12 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Medium Large Integers", b, func(b *testing.B) {
+		bench("10000000 integers, 100 bits width", b, func(b *testing.B) {
 			const len, blen = 10000000, 100
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{0x123, 0x456})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Add(i, bits)
@@ -592,12 +597,13 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Get(i, bits)
 				}
 			})
-			bench("BigInt Slice Operations", b, func(b *testing.B) {
+			bench("BigInt Slice", b, func(b *testing.B) {
 				slice := make([]*big.Int, len)
 				for i := 0; i < len; i++ {
 					slice[i] = new(big.Int)
 				}
 				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = slice[i].Add(slice[i], bits)
@@ -611,11 +617,12 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Big Large Integers", b, func(b *testing.B) {
+		bench("100000 integers, 10000 bits width", b, func(b *testing.B) {
 			const len, blen = 100000, 10000
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Add(i, bits)
@@ -628,12 +635,13 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Get(i, bits)
 				}
 			})
-			bench("BigInt Slice Operations", b, func(b *testing.B) {
+			bench("BigInt Slice", b, func(b *testing.B) {
 				slice := make([]*big.Int, len)
 				for i := 0; i < len; i++ {
 					slice[i] = new(big.Int)
 				}
 				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = slice[i].Add(slice[i], bits)
@@ -648,12 +656,13 @@ func BenchmarkVarIntOperations(b *testing.B) {
 			})
 		})
 	})
-	bench("Benchmark Binary Operations", b, func(b *testing.B) {
-		bench("Tiny Integers", b, func(b *testing.B) {
+	bench("Benchmark Bitwise Operations", b, func(b *testing.B) {
+		bench("100000000 integers, 4 bits width", b, func(b *testing.B) {
 			const len, blen = 100000000, 4
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{10})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Or(i, bits)
@@ -664,8 +673,9 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Rsh(i, blen)
 				}
 			})
-			bench("Uint8 Slice Operations", b, func(b *testing.B) {
+			bench("Uint8 Slice", b, func(b *testing.B) {
 				slice := make([]uint8, len)
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					slice[i] |= 10
@@ -677,11 +687,12 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Word 64 Bits Integers", b, func(b *testing.B) {
+		bench("10000000 integers, 64 bits width", b, func(b *testing.B) {
 			const len, blen = 10000000, 64
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{1000000000})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Or(i, bits)
@@ -692,8 +703,9 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Rsh(i, blen)
 				}
 			})
-			bench("Uint64 Slice Operations", b, func(b *testing.B) {
+			bench("Uint64 Slice", b, func(b *testing.B) {
 				slice := make([]uint64, len)
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					slice[i] |= 10
@@ -705,11 +717,12 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Medium Large Integers", b, func(b *testing.B) {
+		bench("10000000 integers, 100 bits width", b, func(b *testing.B) {
 			const len, blen = 10000000, 100
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{0x123, 0x456})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Or(i, bits)
@@ -720,12 +733,13 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Rsh(i, blen)
 				}
 			})
-			bench("BigInt Slice Operations", b, func(b *testing.B) {
+			bench("BigInt Slice", b, func(b *testing.B) {
 				slice := make([]*big.Int, len)
 				for i := 0; i < len; i++ {
 					slice[i] = new(big.Int)
 				}
 				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = slice[i].Or(slice[i], bits)
@@ -737,11 +751,12 @@ func BenchmarkVarIntOperations(b *testing.B) {
 				}
 			})
 		})
-		bench("Big Large Integers", b, func(b *testing.B) {
+		bench("100000 integers, 10000 bits width", b, func(b *testing.B) {
 			const len, blen = 100000, 10000
-			bench("VarInt Operations", b, func(b *testing.B) {
+			bench("VarInt", b, func(b *testing.B) {
 				vint, _ := NewVarInt(blen, len)
 				bits := NewBits(blen, []uint{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = vint.Or(i, bits)
@@ -752,12 +767,13 @@ func BenchmarkVarIntOperations(b *testing.B) {
 					_ = vint.Rsh(i, blen)
 				}
 			})
-			bench("BigInt Slice Operations", b, func(b *testing.B) {
+			bench("BigInt Slice", b, func(b *testing.B) {
 				slice := make([]*big.Int, len)
 				for i := 0; i < len; i++ {
 					slice[i] = new(big.Int)
 				}
 				bits := new(big.Int).SetBits([]big.Word{0x123, 0x456, 0x678, 0x910, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x100})
+				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					i := n % len
 					_ = slice[i].Or(slice[i], bits)
